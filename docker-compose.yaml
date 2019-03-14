@@ -1,0 +1,9 @@
+---
+version: "3.7"
+services:
+  cucumber:
+    image: carlosnunez/cucumber:master
+    volumes:
+      - "$PWD:/app"
+    working_dir: /app
+    command: --version
