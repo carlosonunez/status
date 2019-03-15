@@ -7,3 +7,9 @@ services:
       - "$PWD:/app"
     working_dir: /app
     command: --version
+  gpg:
+    image: vladgh/gpg
+    volumes:
+      - "$PWD:/app"
+    working_dir: /app
+    command: --version
