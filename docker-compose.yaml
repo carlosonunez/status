@@ -1,15 +1,28 @@
 ---
-version: "3.7"
+version: "2.4"
 services:
-  cucumber:
-    image: carlosnunez/cucumber:master
-    volumes:
-      - "$PWD:/app"
-    working_dir: /app
-    command: --version
   gpg:
     image: vladgh/gpg
     volumes:
       - "$PWD:/app"
     working_dir: /app
     command: --version
+  ruby:
+    image: carlosnunez/cucumber:master
+    volumes:
+      - "$PWD:/app"
+      - "$PWD/.gems:/usr/local/bundle"
+    working_dir: /app
+  feature-tests:
+    extends: ruby
+    entrypoint: [ "cucumber" ]
+    command: "-t 'not @wip' features"
+  unit-tests:
+    extends: ruby
+    entrypoint: [ "rspec" ]
+    command: "spec/"
+  initialize:
+    extends: ruby
+    working_dir: /app
+    entrypoint: ['bundle']
+    command: 'install'

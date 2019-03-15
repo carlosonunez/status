@@ -1,6 +1,10 @@
-source 'rubygems.org'
+source 'https://rubygems.org'
 
 gem 'slack-ruby-client'
 gem 'async-websocket'
 gem 'eventmachine'
 gem 'faye-websocket'
+gem 'tripit'
+gem 'nokogiri'
+gem 'cucumber'
+gem 'rspec'

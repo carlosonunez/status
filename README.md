@@ -40,7 +40,13 @@ If you no longer want Status to sync your flights, turn it off with `/statusdown
 
 # Developing Status
 
-Thanks for your help! Information about developing against Status is forthcoming.
+Thanks for your help!
+
+## Testing Status
+
+1. Initialize project dependencies: `docker-compose run --rm initialize`
+2. Run feature tests: `docker-compose run --rm feature_tests`
+3. Run unit tests: `docker-compose run --rm unit_tests`
 
 # Want more Status?
 
