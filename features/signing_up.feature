@@ -1,3 +1,4 @@
+@wip
 Feature: Signing up for Status
 
   We want getting started with Status to be a seamless experience through Slack.

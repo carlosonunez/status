@@ -1,7 +1,3 @@
-Given("a Slack client") do
-  pending # Write code here that turns the phrase above into concrete actions
-end
-
 When("I start a chat with {string}") do |string|
   pending # Write code here that turns the phrase above into concrete actions
 end
