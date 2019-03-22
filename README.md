@@ -44,7 +44,7 @@ Thanks for your help!
 
 ## Testing Status
 
-1. Initialize project dependencies: `docker-compose run --rm initialize`
+1. Initialize project dependencies: `docker-compose run --rm fetch-deps`
 2. Run feature tests: `docker-compose run --rm feature_tests`
 3. Run unit tests: `docker-compose run --rm unit_tests`
 

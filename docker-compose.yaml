@@ -20,8 +20,8 @@ services:
   unit-tests:
     extends: ruby
     entrypoint: [ "rspec" ]
-    command: "spec/"
-  initialize:
+    command: "spec"
+  fetch-deps:
     extends: ruby
     working_dir: /app
     entrypoint: ['bundle']
