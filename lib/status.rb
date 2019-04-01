@@ -1,1 +1,1 @@
-require 'status/clients/tripit'
+require 'status/clients/tripit_client'

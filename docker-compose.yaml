@@ -9,10 +9,10 @@ services:
     command: --version
   ruby:
     image: carlosnunez/cucumber:master
+    working_dir: /app
     volumes:
       - "$PWD:/app"
       - "$PWD/.gems:/usr/local/bundle"
-    working_dir: /app
   feature-tests:
     extends: ruby
     entrypoint: [ "cucumber" ]
@@ -20,7 +20,6 @@ services:
   unit-tests:
     extends: ruby
     entrypoint: [ "rspec" ]
-    command: "spec"
   fetch-deps:
     extends: ruby
     working_dir: /app
