@@ -1,0 +1,122 @@
+# vi: set ft=yaml:
+# this is the reference for configuring status.
+# copy it and edit as necessary for your configuration.
+---
+# sources are platforms that status will listen to events from.
+# an 'event' is a thing that should cause a status message to be posted
+# onto 'receivers', like a calendar event, a commit, or a webhook.
+#
+# the schema for what an event payload should look like can be found at
+# apis/v1/event/event.go.
+#
+# you can create your own sources! see the readme to learn how.
+sources:
+    # name is the name of the source.
+  - name: example
+
+    # settings is a map describing how the event source should be configured.
+    # See api/v1/config/source/settings.go for the schema.
+    settings:
+      # enabled sets the status of the source.
+      enabled: true
+
+      # lock_durations is a map relating receivers to the lengths of time the status should
+      # be locked for.
+      # When a status is locked, no other source can overwrite it unless 'always_overwrite'
+      # is true. (see 'always_overwrite' for more info on how that works.)
+      lock_durations:
+        - receiver: example
+          duration: 30m
+
+      # weight is the importance of this event source.
+      # Only one status can be posted at a time while a receiver is "locked" for writing unless
+      # always_overwrite is set to true..
+      # While sources are evaluated in parallel, the source with the lowest weight
+      # with events to post will be selected.
+      # Two sources with identical weights are not allowed.
+      weight: 0
+      
+      # poll_interval defines the amount of time to wait between polls to the service producing
+      # events in a relative human-readable time (like 30m or 2d).
+      poll_interval: 30m
+
+    # properties is an arbitrary key-value map to store settings specific to the source.
+    # NOTE: Status does not check that this is a valid structure. Be careful here; unexpected
+    # types can cause panics!
+    properties:
+      foo: bar
+
+    # Events are a list of events that produce statuses.
+    # See api/v1/config/source/event.go for the schema.
+    events:
+        # name is the name of an event we should listen for.
+      - name: something that should update status
+
+        # enabled describes the state of this event; true if enabled, false otherwise.
+        enabled: true
+
+        # weight is the importance of this status.
+        # Events are evaluated in reverse weight order (higher weights are less important).
+        # This means that the first event that produces a status will get posted; all others
+        # will get ignored.
+
+        # include_if is a json blob describing parameters that determine whether the event should
+        # trigger a status update.  status only cares that this is an array of key-value structure;
+        # go crazy with your rules!
+        include_if:
+          - message_regexp: '.*send a status now!$'
+
+        # always_overwrite is a map relating receivers to a flag determining whether the status
+        # should be overwritten regardless of whether that receiver is locked for updating.
+
+    # transforms are a list of rules to send to the 'transformer'.
+    # the 'transformer' takes the 'message' inside of event payloads and turns them into status
+    # messages.
+    # See api/v1/config/source/transform.go for the schema.
+    transforms:
+        # input is a regexp to search for messages against.
+      - input: 'send a (status) now!$'
+
+        # output is the status that should be created from this message.
+        # You can use 'variables' (see below) to customize the status message
+        # further.
+        # regexp capture groups are supported as well.
+        output: '$date: this is a $1'
+
+        # receivers is a whitelist of receivers to which this transform applies.
+        # By default, the transformed status message will be sent to all
+        # listening receivers.
+        receivers: []
+
+# receivers are services to which statuses are sent.
+# See api/v1/config/receiver/receiver.go for the schema.
+receivers:
+    # name is the name of the receiver.
+  - name: example
+
+    # properties is an arbitrary key-value map to store settings specific to the receiver.
+    # NOTE: Status does not check that this is a valid structure. Be careful here; unexpected
+    # types can cause panics!
+    properties:
+      foo: bar
+
+# settings describes how to configure various Status components.
+# See api/v1/config/status/status.go for the schema.
+settings:
+  # Status uses a shared queue for communicating between sources, transformers and receivers.
+  # queue stores settings relevant to the queue.
+  # See api/v1/config/status/queue.go for the schema.
+  #
+  # Supported queues are located in pkg/v1/queue. You can find their configuration
+  # schemas there as well.
+  #
+  # NOTE: Status only supports AMQP queues (AWS SQS, Azure Service Bus, RabbitMQ, etc.)
+  queue:
+    # type is the type of queue to use. This must correspond to a supported queue
+    # in pkg/v1/queue.
+    type: example
+
+    # properties are configuration properties specific to that queue.
+    # You can usually find them in pkg/v1/queue/{queue_type}/.
+    properties:
+      foo: bar
