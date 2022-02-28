@@ -1,54 +1,75 @@
-# You are important.
+# Status
 
-Keep your Slack status and ego in check! Hooks up your flights in Tripit to your Slack status.
+Set statuses onto any service from anywhere!
 
-# Getting Started
+- [Getting Started](#getting-started)
+- [Inspiration](#inspiration)
+- [Design Goals](#design-goals)
+- [Configuration File](#configuration-file)
+- [Writing your own Status sources](#writing-your-own-status-sources)
+- [Writing your own Status receivers](#writing-your-own-status-receivers)
 
-NOTE: Since this is in beta, you'll need to request developer access from TripIt to receive an API
-key. Follow the instructions on [this page](https://www.tripit.com/developer) for more info.
+## Getting Started
 
-1. Add the "Got Status" plugin to TripIt in your Slack Integrations.
-2. Type `/givemestatus` to `#slackbot`. It will ask you for your TripIt API key.
-3. You should see your status automatically update within a few seconds!
+Install status using `go get`:
 
-# Privacy, Please!
-
-You might not want a status for all of the trips in your TripIt account. To tell `Status` to
-only track specific trips, use the `/givemestatus but only for "<pattern>"` command.
-
-`<pattern>` accepts PCRE regular expressions, but don't worry; `status` will let you know when your
-regex is invalid.
-
-## Example
-
-```
-/givemestatus but only for "^Foo\:"
-
-> Got it! I've found a few trips in your TripIt that match this expression. Does this look right?
->
-> "Foo: 1 2 3"
-> "Foo: 4 5 6"
-
-yup
-
-> Awesome! Your changes have been applied.
+```sh
+go get github.com/carlosonunez/status@v1.0.0
 ```
 
-# Status Downgrade
+Then start `status` with a configuration file describing the events to listen to
+and how to turn them into statuses:
 
-If you no longer want Status to sync your flights, turn it off with `/statusdowngrade`.
+```sh
+status -f /path/to/status.yaml
+```
 
-# Developing Status
+## Inspiration
 
-Thanks for your help!
+I generally have lots of things going on, but I hate leaving people waiting on
+me without telling them why. I'm also incredibly lazy and hate setting status
+messages on 80 billion Slack workspaces, Teams tenants, social media accounts,
+and such.
 
-## Testing Status
+I built [Slack Status Bot](https://github.com/carlosonunez/slack-status-bot) as
+a rudimentary approach to posting Slack status messages from TripIt (since I
+travelled all the time when I wrote it). Since this was pinned to a single Slack
+tenant, this obviously didn't scale.
 
-1. Initialize project dependencies: `docker-compose run --rm fetch-deps`
-2. Run feature tests: `docker-compose run --rm feature_tests`
-3. Run unit tests: `docker-compose run --rm unit_tests`
+I wanted something that would let me set statuses onto any platform from any
+source with as little code as possible. This is that thing!
 
-# Want more Status?
+## Design Goals
 
-Are there any features that you'd like to see? [Submit an
-issue](https://github.com/carlosonunez/status/issues/new) and ask for a feature request!
+![](./assets/img/design.png)
+
+- Create status messages from events created by any registered source,
+- Allow arbitrary, destination-aware transformations to statuses,
+- Post status messages onto any destination regardless of the "language" they
+  speak (HTTP, gRPC, WebSockets, SOAP, etc.)
+- Be UNIX-y (be good at reading, transforming, and sending statuses; let each
+  source and receiver handle things like authentication, client construction,
+  etc.)
+
+## Configuration File
+
+See the [reference](./status.yaml.reference) to learn how to configure Status.
+
+## Writing your own Status sources
+
+> ⚠️  This section is still a work in progress.
+
+## Writing your own Status receivers
+
+> ⚠️  This section is still a work in progress.
+
+## Contributing
+
+- [Create an issue](https://github.com/carlosonunez/status/issues/new)
+  describing the problem that you're looking to solve or feature
+  you're looking to implement.
+- Fork this repository
+- If you're implementing a new feature, [add an end-to-end test](./tests/e2e)
+  describing how its supposed to work and not work.
+- Make sure that tests are passing with `make test`
+- Create a pull request and link it to the issue that you created!
