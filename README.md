@@ -2,6 +2,7 @@
 
 Set statuses onto any service from anywhere!
 
+| | |
 | :-----:          | :-----: |
 | **This Version** | -       |
 | **Next Version** | 0.1.0   |
@@ -85,26 +86,26 @@ See the [reference](./status.yaml.reference) to learn how to configure Status.
 
 #### System Design
 
-[X] Pluggable abstract pub-sub implementation, configurable from a config file
-[] Pluggable receivers
-[] Acting on statuses sent to receives through pub-sub
-[] Transformer interface
-[] Transforming event messages into statuses through transformers
-[] Pluggable sources
-[] Sending events to pub/sub from sources
-[] Rendering configs from YAML
+- [X] Pluggable abstract pub-sub implementation, configurable from a config file
+- [ ] Pluggable receivers
+- [ ] Acting on statuses sent to receives through pub-sub
+- [ ] Transformer interface
+- [ ] Transforming event messages into statuses through transformers
+- [ ] Pluggable sources
+- [ ] Sending events to pub/sub from sources
+- [ ] Rendering configs from YAML
 
 #### Pub/Subs
 
-[X] In-Memory PubSub
+- [X] In-Memory PubSub
 
 ### v1.0
 
 #### Sources
 
-[] TripIt
-[] Google Calendar
+- [ ] TripIt
+- [ ] Google Calendar
 
 #### Receivers
 
-[] Slack
+- [ ] Slack
