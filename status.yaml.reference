@@ -113,8 +113,13 @@ settings:
   # NOTE: Status only supports AMQP queues (AWS SQS, Azure Service Bus, RabbitMQ, etc.)
   queue:
     # type is the type of queue to use. This must correspond to a supported queue
-    # in pkg/v1/queue.
+    # in third_party/queue.
     type: example
+
+    # credentials store credentials for the queue.
+    credentials:
+      username: foo
+      password: bar
 
     # properties are configuration properties specific to that queue.
     # You can usually find them in pkg/v1/queue/{queue_type}/.

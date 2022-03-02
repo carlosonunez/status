@@ -1,6 +1,11 @@
 # Status
 
-Set statuses onto any service from anywhere!
+Set statuses for anything from anywhere! It's like IFTTT, but just for
+statuses.
+
+| :-----:          | :-----: |
+| **This Version** | -       |
+| **Next Version** | 0.1.0   |
 
 - [Getting Started](#getting-started)
 - [Inspiration](#inspiration)
@@ -8,6 +13,7 @@ Set statuses onto any service from anywhere!
 - [Configuration File](#configuration-file)
 - [Writing your own Status sources](#writing-your-own-status-sources)
 - [Writing your own Status receivers](#writing-your-own-status-receivers)
+- [Roadmap](#roadmap)
 
 ## Getting Started
 
@@ -73,3 +79,33 @@ See the [reference](./status.yaml.reference) to learn how to configure Status.
   describing how its supposed to work and not work.
 - Make sure that tests are passing with `make test`
 - Create a pull request and link it to the issue that you created!
+
+## Roadmap
+
+### v0.1
+
+#### System Design
+
+- [X] Pluggable abstract pub-sub implementation, configurable from a config file
+- [] Pluggable receivers
+- [] Acting on statuses sent to receives through pub-sub
+- [] Transformer interface
+- [] Transforming event messages into statuses through transformers
+- [] Pluggable sources
+- [] Sending events to pub/sub from sources
+- [] Rendering configs from YAML
+
+#### Pub/Subs
+
+- [X] In-Memory PubSub
+
+### v1.0
+
+#### Sources
+
+- [] TripIt
+- [] Google Calendar
+
+#### Receivers
+
+- [] Slack
