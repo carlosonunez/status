@@ -109,3 +109,9 @@ See the [reference](./status.yaml.reference) to learn how to configure Status.
 #### Receivers
 
 - [ ] Slack
+
+### v1.1
+
+#### Pub/Subs
+
+- [ ] AWS SNS + SQS
