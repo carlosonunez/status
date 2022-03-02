@@ -3,7 +3,8 @@
 Set statuses for anything from anywhere! It's like IFTTT, but just for
 statuses.
 
-| :-----:          | :-----: |
+| | |
+| :-----          | -----: |
 | **This Version** | -       |
 | **Next Version** | 0.1.0   |
 
