@@ -6,7 +6,7 @@ import v1 "github.com/carlosonunez/status/api/v1"
 // them to push/pop objects into and out of the PubSub.
 // See the imported API for schema information.
 type PubSub interface {
-	// NewPubSub creates a PubSub using the 'Credentials' and 'Properties' provided
+	// Initialize creates a PubSub using the 'Credentials' and 'Properties' provided
 	// and adds it to the PubSubs Client.
 	Initialize(*v1.PubSub) error
 
