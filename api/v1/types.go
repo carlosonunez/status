@@ -174,3 +174,17 @@ type StatusMessage struct {
 	// locks applied onto the receiver.
 	OverrideLock bool `json:"override_lock,omitempty"`
 }
+
+// EventRule is a rule evaluated against EventIncludeRules.
+type EventRule struct {
+	// Name is the name of the rule. This is provided to EventIncludeRules in the
+	// 'Rule' field.
+	Name string
+
+	// Evaluator is a function that the event payload is tested against.
+	// The event payload is sent as the first argument, and the condition inside
+	// of the EventIncludeRule is sent as the second.
+	//
+	// Both are assumed to be strings for now.
+	Evaluator func(string, string) (bool, error)
+}
