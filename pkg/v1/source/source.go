@@ -1,10 +1,16 @@
 package source
 
 import (
+	"fmt"
+	"strings"
+
 	v1 "github.com/carlosonunez/status/api/v1"
 	"github.com/carlosonunez/status/pkg/v1/interfaces"
 	"github.com/carlosonunez/status/pkg/v1/registry"
 )
+
+// ValidateEventRuleFn is an alias to ValidateEventRule.
+var ValidateEventRuleFn = ValidateEventRule
 
 // NewSourceFromCfg creates an instance of a source.
 func NewSourceFromCfg(cfg *v1.Source) (*interfaces.Source, error) {

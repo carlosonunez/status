@@ -5,12 +5,13 @@ import (
 	"github.com/carlosonunez/status/third_party/pub_sub/in_memory_pubsub"
 )
 
-// This is the registry of PubSubs, sources, and receivers.
+// ThirdPartyRegistry is the registry of PubSubs, sources, and receivers.
 // You can override it during testing if needed; please restore it using
 // a defer() if you do!
-var ThirdPartyRegistry map[string]map[string]interface{} = registry
+var ThirdPartyRegistry map[string]map[string]interface{} = DefaultThirdPartyRegistry
 
-var registry = map[string]map[string]interface{}{
+// DefaultThirdPartyRegistry is the default ThirdPartyRegistry.
+var DefaultThirdPartyRegistry = map[string]map[string]interface{}{
 	"pubsub": {
 		"nonconformant-ps": &dummy_pubsub.NonconformantPubSub{},
 		"example-ps":       &dummy_pubsub.ExamplePubSub{},

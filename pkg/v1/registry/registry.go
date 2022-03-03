@@ -9,17 +9,35 @@ import (
 	"github.com/carlosonunez/status/third_party/registry"
 )
 
+// RegisteredEventRules are a list of EventRules that status supports.
+var RegisteredEventRules []v1.EventRule = DefaultRegistryEventRules
+
+// DefaultRegistryEventRules is the default set of RegisteredEventRules
+var DefaultRegistryEventRules []v1.EventRule = []v1.EventRule{
+	MatchesRegexpRule,
+}
+
+// Type is a type of "thing" that can be registered; see the consts below.
 type Type int64
 
 const (
+	// PubSub is a thing. See api/v1/types.go for more info.
 	PubSub Type = iota
+
+	// Source is a thing. See api/v1/types.go for more info.
 	Source
+
+	// Receiver is a thing. See api/v1/types.go for more info.
 	Receiver
 )
 
+// FindThirdPartyPubSubFn finds ThirdPartyPubSubs
 var FindThirdPartyPubSubFn = registry.FindThirdPartyPubSub
+
+// FindThirdPartySourceFn finds ThirdPartySources
 var FindThirdPartySourceFn = registry.FindThirdPartySource
 
+// LocateSource finds a third-party Source given a Source name.
 func LocateSource(cfg *v1.Source) (*interfaces.Source, error) {
 	t, err := locate(Source, cfg.Name)
 	if err != nil {
@@ -32,6 +50,7 @@ func LocateSource(cfg *v1.Source) (*interfaces.Source, error) {
 	return &ps, nil
 }
 
+// LocatePubSub finds a third-party PubSub given a PubSub name.
 func LocatePubSub(cfg *v1.PubSub) (*interfaces.PubSub, error) {
 	t, err := locate(PubSub, cfg.Type)
 	if err != nil {
