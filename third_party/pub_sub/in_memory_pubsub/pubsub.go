@@ -3,7 +3,7 @@ package in_memory_pubsub
 import (
 	"fmt"
 
-	v1 "github.com/carlosonunez/status/api/v1/pub_sub"
+	v1 "github.com/carlosonunez/status/api/v1"
 	"github.com/simonfxr/pubsub"
 )
 
@@ -29,8 +29,8 @@ type InMemoryPubSubProperties struct {
 	TopicCount int `yaml:"topic_count:omitempty"`
 }
 
-// NewPubSub
-func (c *InMemoryPubSub) NewPubSub(cfg *v1.PubSub) error {
+// Initialize
+func (c *InMemoryPubSub) Initialize(cfg *v1.PubSub) error {
 	c.Client = pubsub.NewBus()
 	c.Config = cfg
 	c.SubscriptionMap = make(map[string]*pubsub.Subscription)

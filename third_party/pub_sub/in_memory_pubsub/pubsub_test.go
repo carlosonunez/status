@@ -3,7 +3,7 @@ package in_memory_pubsub_test
 import (
 	"testing"
 
-	v1 "github.com/carlosonunez/status/api/v1/pub_sub"
+	v1 "github.com/carlosonunez/status/api/v1"
 	"github.com/carlosonunez/status/pkg/v1/pub_sub"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

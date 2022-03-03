@@ -3,7 +3,7 @@ package dummy_pubsub
 import (
 	"fmt"
 
-	v1 "github.com/carlosonunez/status/api/v1/pub_sub"
+	v1 "github.com/carlosonunez/status/api/v1"
 )
 
 // These are queues used for testing.
@@ -35,7 +35,7 @@ type examplePubSubClient struct {
 }
 
 // NewPubSub creates a new example queue
-func (c *ExamplePubSub) NewPubSub(qCfg *v1.PubSub) error {
+func (c *ExamplePubSub) Initialize(qCfg *v1.PubSub) error {
 	c.Config = qCfg
 	return nil
 }

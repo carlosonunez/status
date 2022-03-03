@@ -1,5 +1,24 @@
 package v1
 
+// Config describes the schema for configuring Status.
+type Config struct {
+
+	// Sources are a list of event sources that produce statuses.
+	Sources []Source
+
+	// Receivers are a list of receivers onto which statuses are posted.
+	Receivers interface{}
+
+	// Settings describe the configuration for Status itself.
+	Settings Settings
+}
+
+// Settings describe the configuration for Status itself.
+type Settings struct {
+	// Queue describes the queue that status should use.
+	PubSub PubSub `yaml:"pub_sub"`
+}
+
 // Source is a service or platform that generates events that should turn into
 // statuses.
 // Google Calendar, RSS, or GitHub are some examples of potential
@@ -121,4 +140,37 @@ type EventTransform struct {
 
 	// Template is a go-template to apply on top of the payload
 	Template string
+}
+
+// PubSub is an abstract client for publish-subscriber services.
+// Its goal is to provide a lightweight way of instantiating pub/subs and
+// pushing into/popping from them.
+type PubSub struct {
+	// Type is the type of the pub/sub.
+	// PubSubs are implemented in 'third_party/pub_sub'.
+	Type string
+
+	// Credentials holds authentication information for creating the pub/sub.
+	Credentials map[string]interface{}
+
+	// Properties holds additional configuration information needed to construct
+	// the pub/sub, like delays and read/write options.
+	Properties map[string]interface{}
+}
+
+// StatusMessage is a message that gets sent into a pub/sub queue.
+type StatusMessage struct {
+	// Name is the name of the message.
+	Name string
+
+	// Message is the payload containing the text that needs to be turned into a
+	// status.
+	Message string
+
+	// Source is the type of source from which this StatusMessage was originated.
+	Source string
+
+	// OverrideLock determines whether this event should attempt to bypass any
+	// locks applied onto the receiver.
+	OverrideLock bool `json:"override_lock,omitempty"`
 }
