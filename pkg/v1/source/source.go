@@ -107,6 +107,30 @@ func TransformEvent(src interfaces.Source, evt *v1.Event, ts *[]v1.EventTransfor
 	}
 }
 
+// PushEvents pushes a batch of events into a pub-sub concurrently.
+func PushEvents(evts *[]v1.Event, ps interfaces.PubSub) error {
+	resultMap := make(map[string]chan map[string]error, len(*evts))
+	for _, evt := range *evts {
+		result := make(chan error)
+
+		go func(e v1.Event) {
+			m := make(map[string]error)
+			err := ps.Publish("all-receivers", &e)
+			m[e.Message] = err
+			result <- err
+		}(evt)
+	}
+	for _, v := range resultMap {
+		m := <-v
+		for msg, err := range m {
+			if err != nil {
+				return fmt.Errorf("'%s' couldn't be posted: %s", msg, err)
+			}
+		}
+	}
+	return nil
+}
+
 func doTransform(src interfaces.Source, evt *v1.Event, ts *[]v1.EventTransform) error {
 	if len(*ts) == 0 {
 		return nil

@@ -3,11 +3,13 @@ package source_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	v1 "github.com/carlosonunez/status/api/v1"
 	"github.com/carlosonunez/status/pkg/v1/mocks"
 	"github.com/carlosonunez/status/pkg/v1/registry"
 	"github.com/carlosonunez/status/pkg/v1/source"
+	"github.com/carlosonunez/status/third_party/pub_sub/in_memory_pubsub"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -161,6 +163,36 @@ var _ = Describe("Transforming events", func() {
 				err := source.TransformEvent(&s, &evt, &ts)
 				Expect(err).To(MatchError("transform exceeded 500ms deadline"))
 			})
+		})
+	})
+})
+
+var _ = Describe("Communicating", func() {
+	Context("When no events have any receiver targets", func() {
+		It("Pushes transformed events into a registered queue", func() {
+			strs := []string{}
+			p := &strs
+			ps := in_memory_pubsub.InMemoryPubSub{}
+			ps.Initialize(&v1.PubSub{})
+			_ = ps.Subscribe("all-receivers", func(evt *v1.Event) {
+				*p = append(*p, evt.Message)
+			}, nil)
+			evts := []v1.Event{
+				{Message: "message-1"},
+				{Message: "message-2"},
+				{Message: "message-3"},
+			}
+			// PushEvents pushes all events async, so it might return before the
+			// array of strings populates.
+			err := source.PushEvents(&evts, &ps)
+			for idx := 0; idx < 20; idx++ {
+				if len(strs) == 3 {
+					break
+				}
+				time.Sleep(250 * time.Millisecond)
+			}
+			Expect(err).To(Succeed())
+			Expect(len(strs)).To(Equal(3))
 		})
 	})
 })
