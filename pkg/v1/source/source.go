@@ -16,6 +16,7 @@ import (
 
 // DefaultTransformEventTimeoutSeconds is whatever it says below.
 var DefaultTransformEventTimeoutSeconds = 10.0
+var oneSecondInMillis = 1000.0
 
 // ValidateEventRuleFn is an alias to ValidateEventRule.
 var ValidateEventRuleFn = ValidateEventRule
@@ -89,7 +90,7 @@ func TransformEvent(src interfaces.Source, evt *v1.Event, ts *[]v1.EventTransfor
 	var duration int
 	var unit time.Duration
 	if TransformEventTimeoutSeconds <= 1 {
-		duration = int(TransformEventTimeoutSeconds * 1000.0)
+		duration = int(TransformEventTimeoutSeconds * oneSecondInMillis)
 		unit = time.Millisecond
 	} else {
 		duration = int(TransformEventTimeoutSeconds)
