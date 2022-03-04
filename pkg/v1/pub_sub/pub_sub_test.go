@@ -18,8 +18,7 @@ func TestPubSubSuite(t *testing.T) {
 var _ = Describe("Publishing", func() {
 	It("Can publish an event to a topic", func() {
 		q, _ := pub_sub.NewPubSubFromCfg(&v1.PubSub{Type: "example"})
-		err := q.Publish("topic-name", &v1.StatusMessage{
-			Name:    "example-message",
+		err := q.Publish("topic-name", &v1.Event{
 			Message: "an event",
 		})
 		Expect(err).To(Succeed())
@@ -33,7 +32,7 @@ var _ = Describe("Subscribing", func() {
 		// First, let's make sure that we can subscribe to the message.
 		// Since "topic-name" won't have any messages in it when we
 		// call subscribe, `msg` should remain empty.
-		callback := func(m *v1.StatusMessage) {
+		callback := func(m *v1.Event) {
 			msg = &m.Message
 		}
 		q, _ := pub_sub.NewPubSubFromCfg(&v1.PubSub{Type: "example"})
@@ -44,8 +43,7 @@ var _ = Describe("Subscribing", func() {
 
 		// However, msg should get filled once we call the callback
 		// upon publishing.
-		_ = q.Publish("topic-name", &v1.StatusMessage{
-			Name:    "example-message",
+		_ = q.Publish("topic-name", &v1.Event{
 			Message: "an event",
 		})
 

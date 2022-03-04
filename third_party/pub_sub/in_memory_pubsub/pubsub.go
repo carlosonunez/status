@@ -43,7 +43,7 @@ func (c *InMemoryPubSub) GetParent() *v1.PubSub {
 }
 
 // Subscribe
-func (c *InMemoryPubSub) Subscribe(topic string, cb func(m *v1.StatusMessage), opts interface{}) error {
+func (c *InMemoryPubSub) Subscribe(topic string, cb func(e *v1.Event), opts interface{}) error {
 	if _, ok := c.SubscriptionMap[topic]; ok {
 		return fmt.Errorf("a subscription is already open for topic '%s'", topic)
 	}
@@ -53,7 +53,7 @@ func (c *InMemoryPubSub) Subscribe(topic string, cb func(m *v1.StatusMessage), o
 }
 
 // Publish
-func (c *InMemoryPubSub) Publish(topic string, m *v1.StatusMessage) error {
+func (c *InMemoryPubSub) Publish(topic string, m *v1.Event) error {
 	c.Client.Publish(topic, m)
 	return nil
 }

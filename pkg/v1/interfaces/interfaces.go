@@ -14,12 +14,12 @@ type PubSub interface {
 	GetParent() *v1.PubSub
 
 	// Publish publishes a message into a pub/sub topic.
-	Publish(string, *v1.StatusMessage) error
+	Publish(string, *v1.Event) error
 
 	// Subscribe creates a subscription to a topic. A callback function can be
 	// provided that acts on new messages sent the topic along with an arbitrary
 	// set of options to provide to the underlying pub/sub implementation.
-	Subscribe(string, func(m *v1.StatusMessage), interface{}) error
+	Subscribe(string, func(m *v1.Event), interface{}) error
 }
 
 // Source is a generator of events that might produce statuses.

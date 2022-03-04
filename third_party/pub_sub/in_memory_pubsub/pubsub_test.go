@@ -16,31 +16,33 @@ func TestInMemoryPubSubSuite(t *testing.T) {
 
 var _ = Describe("In-Memory PubSub", Label("component"), func() {
 	It("Can publish messages and accept subscribers", func() {
-		ps, err := pub_sub.NewPubSubFromCfg(&v1.PubSub{Type: "in_memory"})
+		cfg := v1.PubSub{Type: "in_memory"}
+		ps, err := pub_sub.NewPubSubFromCfg(&cfg)
 		Expect(err).To(Succeed())
-		testMap := make(map[string]string)
-		cb := func(m *v1.StatusMessage) {
-			if _, ok := testMap[m.Name]; !ok {
-				testMap[m.Name] = m.Message
-			}
+		err = ps.Initialize(&cfg)
+		Expect(err).To(Succeed())
+		testMap := make(map[string][]string)
+		cb := func(m *v1.Event) {
+			testMap["test-topic"] = append(testMap["test-topic"], m.Message)
 		}
-		msgs := []v1.StatusMessage{
-			{Name: "first", Message: "first message"},
-			{Name: "second", Message: "second message"},
+		msgs := []v1.Event{
+			{Message: "first message"},
+			{Message: "second message"},
 		}
 		err = ps.Subscribe("test-topic", cb, nil)
 		Expect(err).To(Succeed())
-		Expect(testMap).NotTo(ContainElement("first"))
-		Expect(testMap).NotTo(ContainElement("second"))
+		Expect(testMap).NotTo(ContainElement("test-topic"))
 		for _, msg := range msgs {
 			ps.Publish("test-topic", &msg)
 		}
+		// Add a small wait for the PubSub to sync
 		for idx := 0; idx < 100; idx++ {
 			if _, ok := testMap["first"]; ok {
 				break
 			}
 		}
-		Expect(testMap["first"]).To(Equal("first message"))
-		Expect(testMap["second"]).To(Equal("second message"))
+		Expect(len(testMap["test-topic"])).To(Equal(2))
+		Expect(testMap["test-topic"][0]).To(Equal("first message"))
+		Expect(testMap["test-topic"][1]).To(Equal("second message"))
 	})
 })

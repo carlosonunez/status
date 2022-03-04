@@ -31,7 +31,7 @@ type examplePubSubClient struct {
 	Topics int
 
 	// Messages is a map of topics to message queues inside of them.
-	Messages map[string]chan *v1.StatusMessage
+	Messages map[string]chan *v1.Event
 }
 
 // NewPubSub creates a new example queue
@@ -46,25 +46,25 @@ func (c *ExamplePubSub) GetParent() *v1.PubSub {
 }
 
 // Publish publishes into a dummy topic queue.
-func (c *ExamplePubSub) Publish(topic string, msg *v1.StatusMessage) error {
+func (c *ExamplePubSub) Publish(topic string, evt *v1.Event) error {
 	if c.Client.Messages == nil {
-		c.Client.Messages = make(map[string]chan *v1.StatusMessage)
+		c.Client.Messages = make(map[string]chan *v1.Event)
 	}
 	if _, ok := c.Client.Messages[topic]; !ok {
-		c.Client.Messages[topic] = make(chan *v1.StatusMessage, 1)
+		c.Client.Messages[topic] = make(chan *v1.Event, 1)
 	}
 	select {
-	case c.Client.Messages[topic] <- msg:
+	case c.Client.Messages[topic] <- evt:
 		return nil
 	default:
-		return fmt.Errorf("message not sent to '%s': %+v", topic, msg)
+		return fmt.Errorf("message not sent to '%s': %+v", topic, evt)
 	}
 }
 
 // Subscribe creates a subscription to a topic.
 // In this case, it simply confirms that subscribe is called eventually when
 // executed from a goroutine.
-func (c *ExamplePubSub) Subscribe(topic string, f func(m *v1.StatusMessage), opts interface{}) error {
+func (c *ExamplePubSub) Subscribe(topic string, f func(m *v1.Event), opts interface{}) error {
 	f(<-c.Client.Messages[topic])
 	return nil
 }

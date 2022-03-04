@@ -158,23 +158,6 @@ type PubSub struct {
 	Properties map[string]interface{}
 }
 
-// StatusMessage is a message that gets sent into a pub/sub queue.
-type StatusMessage struct {
-	// Name is the name of the message.
-	Name string
-
-	// Message is the payload containing the text that needs to be turned into a
-	// status.
-	Message string
-
-	// Source is the type of source from which this StatusMessage was originated.
-	Source string
-
-	// OverrideLock determines whether this event should attempt to bypass any
-	// locks applied onto the receiver.
-	OverrideLock bool `json:"override_lock,omitempty"`
-}
-
 // EventRule is a rule evaluated against EventIncludeRules.
 type EventRule struct {
 	// Name is the name of the rule. This is provided to EventIncludeRules in the
