@@ -43,7 +43,7 @@ var _ = Describe("Validating event rules", func() {
 	})
 })
 
-var _ = Describe("Evaluating event rules", func() {
+var _ = Describe("Testing events against event rules", func() {
 	Context("When an event does not satisfy any rules", func() {
 		It("Returns false", func() {
 			evt := v1.Event{Message: "hello"}
@@ -100,7 +100,7 @@ var _ = Describe("Evaluating event rules", func() {
 	})
 })
 
-var _ = Describe("Validating", func() {
+var _ = Describe("Validating Sources", func() {
 	Context("When a source has an event with an invalid rule", func() {
 		It("Errors", func() {
 			source.ValidateEventRuleFn = func(r *v1.EventIncludeRule) error {
@@ -113,6 +113,54 @@ var _ = Describe("Validating", func() {
 			err := source.ValidateSource(&mocks.SourceWithInvalidEventRules)
 			Expect(err).To(MatchError("'invalid-rule' in event 'valid-event-2' in " +
 				"source 'invalid-source' is an invalid event rule: 'an error'"))
+		})
+	})
+})
+
+var _ = Describe("Transforming events", func() {
+	Context("When transformations are provided from a config", func() {
+		Context("When a transformation completes before deadline", func() {
+			It("Performs the transformations", func() {
+				s := mocks.MockSource{}
+				ts := []v1.EventTransform{
+					{
+						Input:    ".*today is (very nice)!$",
+						Template: "{{ .Source.ParseDate .Message }} is {{ index .CaptureGroups 0 }}.",
+					},
+					{
+						Input:    "(.*) is (.*)\\.$",
+						Template: "{{ index .CaptureGroups 0 }} was {{ index .CaptureGroups 1 }}!",
+					},
+				}
+				evt := v1.Event{
+					Message: "Would you look at that; today is very nice!",
+				}
+				err := source.TransformEvent(&s, &evt, &ts)
+				Expect(err).To(Succeed())
+				Expect(evt.Message).To(Equal("Mar 4, 2022 was very nice!"))
+			})
+		})
+		Context("When a transformation exceeds the deadline", func() {
+			It("Errors", func() {
+				source.TransformEventTimeoutSeconds = 0.5
+				defer func() { source.TransformEventTimeoutSeconds = source.DefaultTransformEventTimeoutSeconds }()
+				s := mocks.MockSource{}
+				ts := []v1.EventTransform{
+					{
+						Input:    ".*today is (very nice)!$",
+						Template: "{{ .Source.ReallyLongTransformFunction .Message }} is {{ index .CaptureGroups 0 }}.",
+					},
+					{
+						Input:    "(.*) is (.*)\\.$",
+						Template: "{{ index .CaptureGroups 0 }} was {{ index .CaptureGroups 1 }}!",
+					},
+				}
+				evt := v1.Event{
+					Message: "Would you look at that; today is very nice!",
+				}
+				err := source.TransformEvent(&s, &evt, &ts)
+				Expect(err).To(MatchError("transform exceeded 500ms deadline"))
+			})
 		})
 	})
 })

@@ -1,16 +1,28 @@
 package source
 
 import (
+	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
+	"text/template"
+	"time"
 
 	v1 "github.com/carlosonunez/status/api/v1"
 	"github.com/carlosonunez/status/pkg/v1/interfaces"
 	"github.com/carlosonunez/status/pkg/v1/registry"
+	log "github.com/sirupsen/logrus"
 )
+
+// DefaultTransformEventTimeoutSeconds is whatever it says below.
+var DefaultTransformEventTimeoutSeconds = 10.0
 
 // ValidateEventRuleFn is an alias to ValidateEventRule.
 var ValidateEventRuleFn = ValidateEventRule
+
+// TransformEventTimeoutSeconds is the length of time to give template
+// transformations before cutting them off.
+var TransformEventTimeoutSeconds = DefaultTransformEventTimeoutSeconds
 
 // NewSourceFromCfg creates an instance of a source.
 func NewSourceFromCfg(cfg *v1.Source) (*interfaces.Source, error) {
@@ -58,6 +70,7 @@ func TestEvent(evt *v1.Event, rs *[]v1.EventIncludeRule) (bool, error) {
 		}
 		result := make(chan bool)
 		resultMap[r.Rule] = result
+
 		go runTestForEvent(result, evt, &r, found)
 	}
 	for _, v := range resultMap {
@@ -69,6 +82,85 @@ func TestEvent(evt *v1.Event, rs *[]v1.EventIncludeRule) (bool, error) {
 	return false, nil
 }
 
+// TransformEvent recursively modifies an event payload with an updated version of a message
+// based on a template. Template execution must complete within ten seconds.
+func TransformEvent(src interfaces.Source, evt *v1.Event, ts *[]v1.EventTransform) error {
+	res := make(chan error, 1)
+	var duration int
+	var unit time.Duration
+	if TransformEventTimeoutSeconds <= 1 {
+		duration = int(TransformEventTimeoutSeconds * 1000.0)
+		unit = time.Millisecond
+	} else {
+		duration = int(TransformEventTimeoutSeconds)
+		unit = time.Second
+	}
+	go func() {
+		res <- doTransform(src, evt, ts)
+	}()
+	select {
+	case err := <-res:
+		return err
+	case <-time.After(time.Duration(duration) * unit):
+		return fmt.Errorf("transform exceeded %d%s deadline", duration, unit.String()[1:])
+	}
+}
+
+func doTransform(src interfaces.Source, evt *v1.Event, ts *[]v1.EventTransform) error {
+	if len(*ts) == 0 {
+		return nil
+	}
+	tsp := *ts
+	t := tsp[0]
+	type transformTemplateContext struct {
+		Message       string
+		CaptureGroups []string
+		Source        *interfaces.Source
+	}
+	captureGroups := gatherStringsThatMatchInput(t.Input, evt.Message)
+	if len(captureGroups) == 0 && strings.Contains(t.Template, "{{ index .CaptureGroups") {
+		log.Warningf("transform '%s' references CaptureGroups, but none were found in this message"+
+			"; returning unmodified: '%s'", t.Input, evt.Message)
+		return nil
+	}
+	tmpl, err := template.New("tmpl").Parse(t.Template)
+	if err != nil {
+		log.Errorf("template parse failed; stopping transform: '%s'", t.Template)
+		return err
+	}
+	var msg bytes.Buffer
+	cxt := transformTemplateContext{
+		CaptureGroups: captureGroups,
+		Source:        &src,
+		Message:       evt.Message,
+	}
+	err = tmpl.Execute(&msg, cxt)
+	if err != nil {
+		log.Errorf("template exec failed; stopping transform: '%s'", t.Template)
+		return err
+	}
+	evt.Message = msg.String()
+	tail := tsp[1:]
+	return TransformEvent(src, evt, &tail)
+}
+
 func runTestForEvent(res chan bool, evt *v1.Event, er *v1.EventIncludeRule, r *v1.EventRule) {
 	res <- r.Evaluator(evt.Message, er.Rule)
+}
+
+func gatherStringsThatMatchInput(p string, s string) []string {
+	var captures []string
+	re, err := regexp.Compile(p)
+	if err != nil {
+		return captures
+	}
+	matches := re.FindAllStringSubmatch(s, -1)
+	if len(matches) != 1 {
+		return captures
+	}
+	matchesExceptOriginalString := matches[0][1:]
+	for _, match := range matchesExceptOriginalString {
+		captures = append(captures, match)
+	}
+	return captures
 }
