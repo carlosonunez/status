@@ -29,6 +29,9 @@ const (
 
 	// Receiver is a thing. See api/v1/types.go for more info.
 	Receiver
+
+	// EventRule is a thing. See api/v1/types.go for more info.
+	EventRule
 )
 
 // FindThirdPartyPubSubFn finds ThirdPartyPubSubs
@@ -63,6 +66,16 @@ func LocatePubSub(cfg *v1.PubSub) (*interfaces.PubSub, error) {
 	return &ps, nil
 }
 
+// LocateEventRule locates an event rule.
+func LocateEventRule(r *v1.EventIncludeRule) (*v1.EventRule, error) {
+	t, err := locate(EventRule, r.RuleType)
+	if err != nil {
+		return nil, err
+	}
+	rule, _ := t.(v1.EventRule)
+	return &rule, nil
+}
+
 func locate(rt Type, name string) (interface{}, error) {
 	var t interface{}
 	var ok bool
@@ -78,6 +91,13 @@ func locate(rt Type, name string) (interface{}, error) {
 		if !ok {
 			return nil, fmt.Errorf("'%s' is not an implemented Source", fullName)
 		}
+	case EventRule:
+		for _, r := range RegisteredEventRules {
+			if name == r.Name {
+				return r, nil
+			}
+		}
+		return nil, fmt.Errorf("'%s' is not an implement event rule", name)
 	}
 	return t, nil
 }
