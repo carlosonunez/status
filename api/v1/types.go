@@ -180,5 +180,9 @@ type Event struct {
 
 	// Targets are a list of receivers (by name) onto which the status should be posted.
 	// Empty slices imply that the status should be applied onto all receivers.
-	Targets []string
+	Targets []string `yaml:",omitempty"`
+
+	// OverrideLock tells any receivers listening in to override whatever locks
+	// they have set in place and apply the status anyway.
+	OverrideLock bool `yaml:"override_lock,omitempty"`
 }
