@@ -1,6 +1,10 @@
 package interfaces
 
-import v1 "github.com/carlosonunez/status/api/v1"
+import (
+	"time"
+
+	v1 "github.com/carlosonunez/status/api/v1"
+)
 
 // PubSub provides a lightweight interface for creating publish/subscriber clients and using
 // them to push/pop objects into and out of the PubSub.
@@ -34,9 +38,10 @@ type Source interface {
 	GetParent() *v1.Source
 
 	// Poll retrieves events from your source at the interval specified by
-	// poll_interval.
+	// poll_interval. Pointers to start and end time are provided to assist
+	// your source in finding events to return within the poll interval.
 	//
 	// CoC: Do not use Poll to process/filter your events! Status will take care
 	// of that for you.
-	Poll() (*[]*v1.Event, error)
+	Poll(*time.Time, *time.Time) (*[]*v1.Event, error)
 }

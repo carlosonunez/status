@@ -1,6 +1,7 @@
 package source_test
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -169,7 +170,8 @@ var _ = Describe("Communicating", func() {
 			ps := in_memory_pubsub.InMemoryPubSub{}
 			ps.Initialize(&v1.PubSub{})
 			_ = ps.Subscribe("all-receivers", func(evt *v1.Event) {
-				*p = append(*p, evt.Message)
+				b, _ := json.Marshal(evt)
+				*p = append(*p, string(b))
 			}, nil)
 			evts := []v1.Event{
 				{Message: "message-1"},

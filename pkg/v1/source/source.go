@@ -43,7 +43,10 @@ func NewSourceFromCfg(cfg *v1.Source) (*interfaces.Source, error) {
 // recoverable. However, an exponential backoff will be applied to prevent
 // storms.
 func FetchAndPublishEvents(s interfaces.Source, ps interfaces.PubSub) error {
-	evts, err := s.Poll()
+	start := time.Now()
+	pollDuration, _ := time.ParseDuration(s.GetParent().Settings.PollDuration)
+	end := start.Add(pollDuration)
+	evts, err := s.Poll(&start, &end)
 	if err != nil {
 		log.Errorf("poll failed for '%s': %s", s.GetParent().Name, err)
 		return nil
@@ -94,11 +97,49 @@ func selectFirstMatchingEvent(defs *[]v1.StatusGeneratingEvent, evts *[]*v1.Even
 // We fail hard if a source is not defined to prevent statuses not getting set
 // due to invalid configs.
 func ValidateSource(s *v1.Source) error {
+	err := validateStatusGeneratingEvents(s)
+	if err != nil {
+		return err
+	}
+	err = validateSourcePollDuration(s)
+	if err != nil {
+		return err
+	}
+	err = validateLockDurations(s)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateStatusGeneratingEvents(s *v1.Source) error {
 	for _, e := range s.StatusGeneratingEvents {
 		for _, r := range e.IncludeIf {
 			if err := ValidateEventRuleFn(&r); err != nil {
 				return fmt.Errorf("'%s' in event '%s' in source '%s' is an invalid event rule: '%s'",
 					r.RuleType, e.Name, s.Name, err)
+			}
+		}
+	}
+	return nil
+}
+
+func validateSourcePollDuration(s *v1.Source) error {
+	if _, err := time.ParseDuration(s.Settings.PollDuration); err != nil {
+		return fmt.Errorf("poll duration for '%s' invalid: %s", s.Name, err)
+	}
+	return nil
+}
+
+func validateLockDurations(s *v1.Source) error {
+	for _, ld := range s.Settings.LockDurations {
+		if _, err := time.ParseDuration(ld.DefaultDuration); err != nil {
+			return fmt.Errorf("default lock duration for '%s' invalid: %s", s.Name, err)
+		}
+		for _, ex := range ld.Exceptions {
+			if _, err := time.ParseDuration(ex.Duration); err != nil {
+				return fmt.Errorf("lock duration for receiver '%s' in source '%s' invalid: %s",
+					ex.ReceiverName, s.Name, err)
 			}
 		}
 	}

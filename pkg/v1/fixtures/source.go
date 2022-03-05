@@ -1,6 +1,10 @@
 package fixtures
 
-import v1 "github.com/carlosonunez/status/api/v1"
+import (
+	"time"
+
+	v1 "github.com/carlosonunez/status/api/v1"
+)
 
 // ExampleSource is an example of a source with events.
 type ExampleSource struct{}
@@ -16,7 +20,7 @@ func (s *ExampleSource) GetParent() *v1.Source {
 }
 
 // Poll discovers and returns new events.
-func (s *ExampleSource) Poll() (*[]*v1.Event, error) {
+func (s *ExampleSource) Poll(start *time.Time, end *time.Time) (*[]*v1.Event, error) {
 	var evts []*v1.Event
 	evtsProduced := []v1.Event{
 		{
@@ -50,7 +54,7 @@ var exampleSourceConfig v1.Source = v1.Source{
 	Settings: v1.SourceSettings{
 		Enabled:      true,
 		Weight:       15,
-		PollDuration: 1,
+		PollDuration: "1m",
 	},
 	StatusGeneratingEvents: []v1.StatusGeneratingEvent{
 		{

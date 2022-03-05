@@ -55,7 +55,7 @@ func (c *MockSource) GetParent() *v1.Source {
 }
 
 // Poll simulates an event poll.
-func (c *MockSource) Poll() (*[]*v1.Event, error) {
+func (c *MockSource) Poll(start *time.Time, end *time.Time) (*[]*v1.Event, error) {
 	rand.Seed(time.Now().UnixNano())
 	r := rand.Intn(500)
 	// Simulate a small amount of network latency.
