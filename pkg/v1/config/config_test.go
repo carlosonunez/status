@@ -7,7 +7,7 @@ import (
 	"github.com/carlosonunez/status/pkg/v1/mocks"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/r3labs/diff/v2"
+	diff "github.com/r3labs/diff/v2"
 )
 
 var _ = Describe("Reading config files", func() {
