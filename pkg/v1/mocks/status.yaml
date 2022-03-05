@@ -1,0 +1,30 @@
+---
+sources:
+  - name: example
+    settings:
+      enabled: true
+      weight: 0
+      poll_interval: 30m
+    properties:
+      foo: bar
+    events:
+      - name: something that should update status
+        enabled: true
+        weight: 0
+        include_if:
+          - type: regexp-matches
+            rule: '.*send a status now!$'
+        always_overwrite: true
+        transforms:
+          - input: 'send a (status) now!$'
+            template: '{{ .Source.Today }} is a {{ index .CaptureGroups 0 }}'
+        lock_duration:
+          default: 30m
+settings:
+  pub_sub:
+    type: example
+    credentials:
+      username: foo
+      password: bar
+    properties:
+      foo: bar

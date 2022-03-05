@@ -7,7 +7,7 @@ type Config struct {
 	Sources []Source
 
 	// Receivers are a list of receivers onto which statuses are posted.
-	Receivers interface{}
+	Receivers interface{} `yaml:",omitempty"` // ...for now
 
 	// Settings describe the configuration for Status itself.
 	Settings Settings
@@ -66,7 +66,7 @@ type SourceSettings struct {
 
 	// PollInterval determines how often Status should poll the source's service
 	// in minutes. Status polls every five (5) minutes by default.
-	PollDuration int `yaml:"poll_interval,omitempty"`
+	PollDuration string `yaml:"poll_interval,omitempty"`
 }
 
 // StatusGeneratingEvent is an event that produces a status.
@@ -76,13 +76,13 @@ type StatusGeneratingEvent struct {
 
 	// Enabled determines whether status should act on this event. Defaults to
 	// 'true'.
-	Enabled bool `yaml:"omitempty"`
+	Enabled bool `yaml:"enabled,omitempty"`
 
 	// Weight is the weight of this event. Highest event with payloads wins.
 	Weight int
 
 	// IncludeIf are a list of conditions to watch for.
-	IncludeIf []EventIncludeRule
+	IncludeIf []EventIncludeRule `yaml:"include_if"`
 
 	// AlwaysOverwrite will force the receiver to write the status created by this
 	// event.
@@ -106,7 +106,7 @@ type StatusGeneratingEvent struct {
 // that can't be changed for 30 minutes.
 type LockDuration struct {
 	// DefaultDuration is the length of the duration in minutes. This applies for ALL receivers.
-	DefaultDuration int `yaml:"default,omitempty"`
+	DefaultDuration string `yaml:"default,omitempty"`
 
 	// Exceptions are durations applied onto specific receivers by name.
 	Exceptions []LockDurationException `yaml:",omitempty"`
@@ -126,10 +126,10 @@ type LockDurationException struct {
 type EventIncludeRule struct {
 	// RuleType is the type of rule to evaluate. See pkg/v1/event/event_rule.go
 	// for more details.
-	RuleType string
+	RuleType string `yaml:"type"`
 
 	// Rule is a string to evaluate against the event payload.
-	Rule string
+	Rule string `yaml:"rule"`
 }
 
 // EventTransform is a transform to apply onto events that satsify their
