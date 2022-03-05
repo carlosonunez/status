@@ -30,10 +30,13 @@ type Source interface {
 	// Use this to create clients, log into services, etc.
 	Initialize(map[string]interface{}) error
 
+	// GetParent retrieves the config that spawnwed the Source.
+	GetParent() *v1.Source
+
 	// Poll retrieves events from your source at the interval specified by
 	// poll_interval.
 	//
 	// CoC: Do not use Poll to process/filter your events! Status will take care
 	// of that for you.
-	// Poll() ([]*v1.Event, error)
+	Poll() (*[]*v1.Event, error)
 }

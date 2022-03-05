@@ -49,8 +49,13 @@ func (c *MockSource) Initialize(props map[string]interface{}) error {
 	return nil
 }
 
+// GetParent is GetParent
+func (c *MockSource) GetParent() *v1.Source {
+	return &SourceWithInvalidEventRules
+}
+
 // Poll simulates an event poll.
-func (c *MockSource) Poll() ([]*v1.Event, error) {
+func (c *MockSource) Poll() (*[]*v1.Event, error) {
 	rand.Seed(time.Now().UnixNano())
 	r := rand.Intn(500)
 	// Simulate a small amount of network latency.
@@ -63,7 +68,7 @@ func (c *MockSource) Poll() ([]*v1.Event, error) {
 		}
 		evts = append(evts, &evt)
 	}
-	return evts, nil
+	return &evts, nil
 }
 
 // ParseDate takes a date inside of an event message and returns a

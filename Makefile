@@ -23,7 +23,11 @@ test: unit component e2e # Runs all tests
 
 unit: _verify_ginkgo
 unit: # Runs unit tests.
-	ginkgo --label-filter '!e2e && !component' ./...
+	ginkgo --label-filter '!e2e && !integration && !component' ./...
+
+integration: _verify_ginkgo
+integration: # Runs integration tests
+	ginkgo --label-filter 'integration' ./...
 
 e2e: _verify_ginkgo
 e2e: # Runs e2e feature suites.

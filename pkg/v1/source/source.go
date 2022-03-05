@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -32,6 +33,60 @@ func NewSourceFromCfg(cfg *v1.Source) (*interfaces.Source, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// FetchAndPublishEvents retrieves events for a registered source and publishes
+// them into a registered pub-sub.
+//
+// NOTE: An error occurring inside of FetchAndPublishEvents will not stop
+// the main poll loop, as errors during polling are assumed to be eventually
+// recoverable. However, an exponential backoff will be applied to prevent
+// storms.
+func FetchAndPublishEvents(s interfaces.Source, ps interfaces.PubSub) error {
+	evts, err := s.Poll()
+	if err != nil {
+		log.Errorf("poll failed for '%s': %s", s.GetParent().Name, err)
+		return nil
+	}
+	log.Debugf("num events from '%s': %d", s.GetParent().Name, len(*evts))
+	if len(*evts) == 0 {
+		log.Debugf("zero events returned by '%s'; exiting", s.GetParent().Name)
+		return nil
+	}
+	evtToPublish, transformList := selectFirstMatchingEvent(&s.GetParent().StatusGeneratingEvents, evts)
+	if evtToPublish == nil {
+		log.Infof("'%s': no events found during this poll", s.GetParent().Name)
+		return nil
+	}
+	if err = TransformEvent(s, evtToPublish, transformList); err != nil {
+		log.Debugf("failed to transform evt in '%s': %s", s.GetParent().Name, err)
+		return err
+	}
+	evtsToPublish := []v1.Event{*evtToPublish}
+	log.Debugf("%s: publishing event: %+v", s.GetParent().Name, evtsToPublish)
+	return PushEvents(&evtsToPublish, ps)
+}
+
+func selectFirstMatchingEvent(defs *[]v1.StatusGeneratingEvent, evts *[]*v1.Event) (*v1.Event, *[]v1.EventTransform) {
+	defsp := *defs
+	sort.SliceStable(defsp, func(i, j int) bool {
+		return defsp[i].Weight <= defsp[j].Weight
+	})
+	for _, def := range *defs {
+		rules := def.IncludeIf
+		for _, evt := range *evts {
+			res, err := TestEvent(evt, &rules)
+			if err != nil {
+				log.Warningf("error in testing event '%s' against event def '%s': %s",
+					evt.Message, def.Name, err)
+			}
+			if res {
+				return evt, &def.Transforms
+			}
+		}
+	}
+	log.Debugf("no events found that match definitions %+v", *defs)
+	return nil, nil
 }
 
 // ValidateSource checks that a source defined in a config is correct.

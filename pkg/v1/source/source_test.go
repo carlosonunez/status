@@ -2,7 +2,6 @@ package source_test
 
 import (
 	"errors"
-	"testing"
 	"time"
 
 	v1 "github.com/carlosonunez/status/api/v1"
@@ -13,11 +12,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
-
-func TestSourceSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Source reconciliation loop suite")
-}
 
 var _ = Describe("Resolving sources from a config", func() {
 	Context("When a given name doesn't have a registered source", func() {
