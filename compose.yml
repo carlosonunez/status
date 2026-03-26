@@ -1,0 +1,120 @@
+name: status-bot
+
+services:
+
+  # Compiles the status binary. Output lands in ./bin/status via bind mount.
+  build:
+    image: golang:1.24-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go-cache:/root/.cache/go-build
+      - gomod-cache:/go/pkg/mod
+    command: go build -o bin/status ./cmd/status
+    environment:
+      CGO_ENABLED: "0"
+      GOOS: linux
+      GOARCH: arm64
+
+  # Runs the full test suite. DynamoDB Local is started as a dependency.
+  test:
+    image: golang:1.24-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go-cache:/root/.cache/go-build
+      - gomod-cache:/go/pkg/mod
+    command: go test ./... -v -count=1
+    environment:
+      CGO_ENABLED: "0"
+      STATUS_DYNAMO_ENDPOINT: http://dynamodb-local:8000
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: us-east-1
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+
+  # Runs only unit tests (no external service dependencies).
+  test-unit:
+    image: golang:1.24-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go-cache:/root/.cache/go-build
+      - gomod-cache:/go/pkg/mod
+    command: go test ./... -short -v -count=1
+    environment:
+      CGO_ENABLED: "0"
+
+  # Runs golangci-lint.
+  lint:
+    image: golangci/golangci-lint:v1.64-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go-cache:/root/.cache/go-build
+      - gomod-cache:/go/pkg/mod
+    command: golangci-lint run ./...
+
+  # Runs the daemon with live reload via Air.
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go-cache:/root/.cache/go-build
+      - gomod-cache:/go/pkg/mod
+      - ${STATUS_CONFIG_DIR:-~/.config/status}:/root/.config/status:ro
+      - ~/.gnupg:/root/.gnupg:ro
+    environment:
+      STATUS_DYNAMO_ENDPOINT: http://dynamodb-local:8000
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: us-east-1
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # DynamoDB Local for development and integration tests.
+  dynamodb-local:
+    image: amazon/dynamodb-local:2.5.3
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/shell/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # AWS CLI helper for one-off admin tasks (e.g. just dynamo-init).
+  awscli:
+    image: amazon/aws-cli:2.15.0
+    environment:
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["aws"]
+    depends_on:
+      - dynamodb-local
+
+  # Builds a release binary and pushes to ECR.
+  deploy:
+    image: golang:1.24-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go-cache:/root/.cache/go-build
+      - gomod-cache:/go/pkg/mod
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: sh scripts/deploy.sh
+    environment:
+      CGO_ENABLED: "0"
+
+volumes:
+  go-cache:
+  gomod-cache:

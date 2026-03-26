@@ -1,0 +1,14 @@
+[build]
+  cmd = "go build -o ./bin/status ./cmd/status"
+  bin = "./bin/status"
+  args_bin = ["start"]
+  include_ext = ["go"]
+  exclude_dir = ["bin", "vendor"]
+  delay = 500
+
+[log]
+  time = true
+
+[color]
+  build = "yellow"
+  runner = "green"
