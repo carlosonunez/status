@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -e
+
+gitleaks dir --no-banner
+gitleaks git --no-banner
