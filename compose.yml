@@ -57,11 +57,9 @@ services:
       - gomod-cache:/go/pkg/mod
     command: golangci-lint run ./...
 
-  # Runs the daemon with live reload via Air.
+  # Runs the daemon.
   dev:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
+    image: golang:1.24-alpine
     working_dir: /app
     volumes:
       - .:/app
@@ -69,7 +67,9 @@ services:
       - gomod-cache:/go/pkg/mod
       - ${STATUS_CONFIG_DIR:-~/.config/status}:/root/.config/status:ro
       - ~/.gnupg:/root/.gnupg:ro
+    command: go run ./cmd/status start
     environment:
+      CGO_ENABLED: "0"
       STATUS_DYNAMO_ENDPOINT: http://dynamodb-local:8000
       AWS_ACCESS_KEY_ID: local
       AWS_SECRET_ACCESS_KEY: local
