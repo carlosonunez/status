@@ -11,7 +11,7 @@ import (
 	"github.com/carlosonunez/status/internal/engine"
 	"github.com/carlosonunez/status/internal/getter"
 	"github.com/carlosonunez/status/internal/setter"
-	"github.com/rs/zerolog/log"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -38,11 +38,11 @@ func newStartCommand() *cobra.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			log.Info().Str("config", path).Msg("status daemon starting")
+			logrus.WithField("config", path).Info("status daemon starting")
 			if err := eng.Run(ctx); err != nil {
 				return err
 			}
-			log.Info().Msg("status daemon stopped")
+			logrus.Info("status daemon stopped")
 			return nil
 		},
 	}

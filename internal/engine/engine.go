@@ -15,7 +15,7 @@ import (
 	"github.com/carlosonunez/status/internal/rule"
 	"github.com/carlosonunez/status/internal/setter"
 	"github.com/carlosonunez/status/internal/transform"
-	"github.com/rs/zerolog/log"
+	"github.com/sirupsen/logrus"
 )
 
 // getterGroup bundles a single EventGetter with all rules that use it,
@@ -129,7 +129,7 @@ func (e *Engine) runGroup(ctx context.Context, g getterGroup) {
 func (e *Engine) processGroup(ctx context.Context, g getterGroup) {
 	events, err := g.getter.GetEvents(ctx, g.params)
 	if err != nil {
-		log.Warn().Err(err).Str("getter", g.getter.Name()).Msg("getter error; skipping tick")
+		logrus.WithError(err).WithField("getter", g.getter.Name()).Warn("getter error; skipping tick")
 		return
 	}
 	for _, event := range events {
@@ -153,7 +153,7 @@ func (e *Engine) dispatch(ctx context.Context, event getter.Event, r *rule.Rule,
 		}
 		s, err := e.setters.Get(setterName)
 		if err != nil {
-			log.Warn().Str("setter", setterName).Str("rule", r.Name).Msg("setter not found")
+			logrus.WithField("setter", setterName).WithField("rule", r.Name).Warn("setter not found")
 			continue
 		}
 		for _, tr := range r.Transforms {
@@ -162,7 +162,7 @@ func (e *Engine) dispatch(ctx context.Context, event getter.Event, r *rule.Rule,
 				continue
 			}
 			if _, err := s.SetStatus(ctx, status); err != nil {
-				log.Warn().Err(err).Str("setter", setterName).Str("rule", r.Name).Msg("setter error")
+				logrus.WithError(err).WithField("setter", setterName).WithField("rule", r.Name).Warn("setter error")
 			}
 			dispatched[setterName] = true
 			break

@@ -1,12 +1,10 @@
 package cli
 
 import (
-	"os"
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -40,20 +38,19 @@ func NewRootCommand() *cobra.Command {
 }
 
 func configureLogging(level, format string) error {
-	lvl, err := zerolog.ParseLevel(strings.ToLower(level))
+	lvl, err := logrus.ParseLevel(strings.ToLower(level))
 	if err != nil {
 		return err
 	}
-	zerolog.SetGlobalLevel(lvl)
-	zerolog.TimeFieldFormat = time.RFC3339Nano
+	logrus.SetLevel(lvl)
 
 	if strings.ToLower(format) == "json" {
-		log.Logger = zerolog.New(os.Stdout).With().Timestamp().Logger()
+		logrus.SetFormatter(&logrus.JSONFormatter{TimestampFormat: time.RFC3339Nano})
 	} else {
-		log.Logger = zerolog.New(zerolog.ConsoleWriter{
-			Out:        os.Stdout,
-			TimeFormat: time.RFC3339,
-		}).With().Timestamp().Logger()
+		logrus.SetFormatter(&logrus.TextFormatter{
+			FullTimestamp:   true,
+			TimestampFormat: time.RFC3339,
+		})
 	}
 
 	return nil
