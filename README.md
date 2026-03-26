@@ -618,3 +618,10 @@ Status stores rules and app configuration into a file called `config.yaml` in th
 
 You can edit anything in Status in this file. Run `status check config` to make
 sure that your configuration is correct.
+
+## AI Disclaimer
+
+Most of the code powering `status` was written by Claude.
+
+This README was initially written by me. Claude has the ability to modify it based
+on what it builds.
