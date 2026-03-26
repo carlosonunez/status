@@ -81,3 +81,8 @@ func Get(name string) (StatusSetter, error) { return defaultRegistry.Get(name) }
 
 // All calls All on the package-level default registry.
 func All() []StatusSetter { return defaultRegistry.All() }
+
+// DefaultRegistry returns the package-level default registry.
+// Use this only when you need to pass the registry to a function that requires
+// an explicit *Registry (e.g., plugin.DiscoverAllDefault).
+func DefaultRegistry() *Registry { return defaultRegistry }

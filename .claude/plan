@@ -1,0 +1,57 @@
+# External Binary Plugin System
+
+## Goal
+Allow event getters and status setters to be compiled as separate binaries,
+discoverable from `$XDG_CONFIG_HOME/status/bin/`. Modeled after Docker/kubectl
+plugin conventions. JSON over stdin/stdout protocol.
+
+## Convention
+- Getter plugins: `$XDG_CONFIG_HOME/status/bin/status-getter-<name>`
+- Setter plugins: `$XDG_CONFIG_HOME/status/bin/status-setter-<name>`
+
+## Protocol
+All communication is JSON over stdin/stdout, one subprocess invocation per call.
+
+### Discovery (`--metadata`)
+Binary receives no stdin; prints JSON to stdout:
+```json
+{
+  "name": "google-calendar",
+  "type": "getter",
+  "min_interval": "1m",
+  "param_specs": [{"name": "calendar_id", "description": "...", "required": true, "type": "string"}]
+}
+```
+
+### GetEvents (`--get-events`)
+stdin:  `{"params": {"key": "value"}}`
+stdout: `{"events": [...], "error": "optional"}`
+
+### SetStatus (`--set-status`)
+stdin:  `{"params": {"key": "value"}}`
+stdout: `{"skipped": false, "response": "ok", "error": "optional"}`
+
+## Files to Create
+
+### pkg/pluginsdk/ (for external plugin authors — no internal deps)
+1. `pkg/pluginsdk/types.go` — DONE: Event, ParamSpec, SetResult, protocol messages
+2. `pkg/pluginsdk/pluginsdk.go` — GetterHandler/SetterHandler interfaces + ServeGetter/ServeSetter
+3. `pkg/pluginsdk/pluginsdk_test.go` — table-driven tests with injectable args/stdin/stdout
+
+### internal/plugin/ (host-side: discovery + subprocess wrappers)
+4. `internal/plugin/external_getter.go` — ExternalGetter implementing getter.EventGetter via subprocess
+5. `internal/plugin/external_getter_test.go` — tests using temp-dir fake shell-script plugins
+6. `internal/plugin/external_setter.go` — ExternalSetter implementing setter.StatusSetter via subprocess
+7. `internal/plugin/external_setter_test.go` — tests using temp-dir fake shell-script plugins
+8. `internal/plugin/discovery.go` — scan bin dir, invoke --metadata, register in default registries
+9. `internal/plugin/discovery_test.go` — tests using temp-dir with fake plugin scripts
+
+### cmd/status/main.go update
+10. Call `plugin.DiscoverAll()` at startup (after blank imports, before root.Execute())
+
+## Order of Implementation (TDD)
+1. pkg/pluginsdk/pluginsdk_test.go → pkg/pluginsdk/pluginsdk.go (ServeGetter/ServeSetter)
+2. internal/plugin/external_getter_test.go → internal/plugin/external_getter.go
+3. internal/plugin/external_setter_test.go → internal/plugin/external_setter.go
+4. internal/plugin/discovery_test.go → internal/plugin/discovery.go
+5. Update cmd/status/main.go
