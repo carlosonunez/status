@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/carlosonunez/status/internal/config"
+	"github.com/carlosonunez/status/internal/params"
 	"github.com/carlosonunez/status/internal/transform"
 )
 
@@ -26,11 +27,7 @@ func FromConfig(cfg config.RuleConfig) (*Rule, error) {
 	for _, tc := range cfg.Transforms {
 		setters := make(map[string]transform.StatusTemplate, len(tc.StatusSetters))
 		for _, ss := range tc.StatusSetters {
-			params := ss.Params
-			if params == nil {
-				params = map[string]any{}
-			}
-			setters[ss.Name] = transform.StatusTemplate{Params: params}
+			setters[ss.Name] = transform.StatusTemplate{Params: params.FromMap(ss.Params)}
 		}
 
 		tr, err := transform.New(tc.Pattern, setters)

@@ -5,16 +5,15 @@ import (
 	"regexp"
 
 	"github.com/carlosonunez/status/internal/getter"
+	"github.com/carlosonunez/status/internal/params"
 	"github.com/carlosonunez/status/internal/setter"
 )
 
-// StatusTemplate holds the un-resolved parameter map for one setter within a
+// StatusTemplate holds the un-resolved parameters for one setter within a
 // transform. String values in Params may contain $N references that are
 // substituted with regex capture groups when the transform is applied.
 type StatusTemplate struct {
-	// Params holds setter-specific key/value pairs exactly as written in config.
-	// Each StatusSetter implementation decides which keys it uses.
-	Params map[string]any
+	Params params.Params
 }
 
 // Transform matches an event title against a regex pattern and resolves status
@@ -40,9 +39,8 @@ func New(pattern string, setters map[string]StatusTemplate) (*Transform, error) 
 
 // Apply attempts to match event.Title against the transform's pattern.
 // If the pattern matches and setterName is configured on this transform, it
-// returns a setter.Status whose Params have all string values resolved (with
-// $N capture-group references substituted) and true.
-// Returns a zero setter.Status and false otherwise.
+// returns a setter.Status with all string param values resolved ($N references
+// substituted) and true. Returns a zero setter.Status and false otherwise.
 func (t *Transform) Apply(event getter.Event, setterName string) (setter.Status, bool) {
 	tmpl, ok := t.setters[setterName]
 	if !ok {
@@ -52,15 +50,15 @@ func (t *Transform) Apply(event getter.Event, setterName string) (setter.Status,
 		return setter.Status{}, false
 	}
 
-	resolved := make(map[string]any, len(tmpl.Params))
-	for k, v := range tmpl.Params {
-		if s, ok := v.(string); ok {
+	resolved := make(map[string]any, len(tmpl.Params.Keys()))
+	for _, k := range tmpl.Params.Keys() {
+		if s, ok := tmpl.Params.String(k); ok {
 			resolved[k] = t.substituteCaptures(s, event.Title)
-		} else {
+		} else if v, ok := tmpl.Params.Value(k); ok {
 			resolved[k] = v
 		}
 	}
-	return setter.Status{Params: resolved}, true
+	return setter.Status{Params: params.FromMap(resolved)}, true
 }
 
 // substituteCaptures substitutes $N references in tpl with capture groups from
@@ -71,11 +69,8 @@ func (t *Transform) substituteCaptures(tpl, title string) string {
 	return t.pattern.ReplaceAllString(title, normalizeDollarN(tpl))
 }
 
-// dollarN matches bare $N references (e.g. $1, $12).
 var dollarN = regexp.MustCompile(`\$(\d+)`)
 
-// normalizeDollarN converts $N to ${N} for unambiguous use in
-// regexp.ReplaceAllString.
 func normalizeDollarN(s string) string {
 	return dollarN.ReplaceAllString(s, "$${${1}}")
 }
