@@ -1,102 +1,66 @@
-# Phase 3: Event Loop Engine
+# Phase 4: Token Store
 
 ## Goal
-Build `internal/engine` — the core runtime that polls event getters, applies
-transforms, and dispatches statuses to setters. Also wire it into the `start`
-CLI command.
+Build `internal/tokenstore` — a pluggable credential storage layer used by
+OAuth-based getters and setters (Slack, Google Calendar, etc.) to persist and
+retrieve access/refresh tokens.
 
-## Design
+## Interface
 
-### Engine API
 ```go
-type Engine struct {
-    rules   []*rule.Rule
-    getters *getter.Registry
-    setters *setter.Registry
-    now     func() time.Time  // injectable clock for tests
-}
-
-func New(cfg *config.Config, gr *getter.Registry, sr *setter.Registry) (*Engine, error)
-func (e *Engine) Run(ctx context.Context) error
-```
-
-`New` validates that every getter and setter name referenced in the config is
-registered; returns an error listing any missing names.
-
-`Run` starts one polling goroutine per unique getter, blocks until ctx is
-cancelled, then waits for all goroutines to stop.
-
-### Polling loop (per getter)
-```
-ticker := time.NewTicker(getter.MinInterval())
-for {
-    select {
-    case <-ctx.Done(): return
-    case <-ticker.C:
-        events, err := getter.GetEvents(ctx, params)
-        if err: log and continue
-        for each active event:
-            for each rule (sorted by priority) that uses this getter:
-                for each setter referenced by the rule's transforms:
-                    find first matching transform → dispatch Status
-    }
+// Store persists and retrieves opaque credential strings keyed by
+// (service, key). Service is e.g. "slack" or "google_calendar";
+// key is e.g. "access_token" or "refresh_token".
+type Store interface {
+    Get(service, key string) (string, error)
+    Set(service, key string, value string) error
+    Delete(service, key string) error
 }
 ```
 
-### Event activity
+## Backends
+
+### File backend (default)
+- Stores tokens in a JSON file at `~/.config/status/tokens.json`
+  (or the path from `FileStoreConfig.Path`)
+- Format: `{"slack": {"access_token": "xoxp-...", ...}, ...}`
+- Reads the file on every `Get`; writes the whole file on every `Set`/`Delete`
+- Safe for single-process use; protected by an in-process mutex
+- Unit tests: inject a `readWriter` interface (in-memory bytes.Buffer) — no
+  real files
+
+### DynamoDB backend
+- Table schema: partition key `service` (S), sort key `key` (S), attribute
+  `value` (S)
+- Uses `aws-sdk-go-v2` (add to go.mod)
+- Endpoint from `AWS_ENDPOINT_DYNAMODB` env var (falls back to
+  `DynamoStoreConfig.Endpoint`, then AWS default)
+- Credentials from the default AWS credential chain
+- Unit tests: connect to DynamoDB Local via `AWS_ENDPOINT_DYNAMODB`
+  (default `http://localhost:8000`); skip with `t.Skip` if unreachable
+- Each test creates a uniquely-named table, deletes it in `t.Cleanup`
+
+## Factory
+
 ```go
-func isActive(e getter.Event, now time.Time) bool {
-    if e.AllDay {
-        // active if the event's start date is today (UTC)
-        today := now.UTC().Truncate(24 * time.Hour)
-        day   := e.StartsAt.UTC().Truncate(24 * time.Hour)
-        return today.Equal(day)
-    }
-    return !now.Before(e.StartsAt) && now.Before(e.EndsAt)
-}
+func FromConfig(cfg config.TokenStoreConfig) (Store, error)
 ```
-
-### Transform dispatch (per event, per setter)
-Iterate transforms of the matched rule in slice order (rules are
-already priority-sorted). The **first** transform that matches the event title
-AND targets the setter wins; later transforms for the same setter are skipped.
-
-### Error handling
-- Getter errors: log at warn level, continue polling
-- Setter errors: log at warn level, continue with next setter
-- No panics; engine keeps running until ctx is cancelled
-
-### Grouped getter calls
-Multiple rules may share the same getter. The engine groups rules by
-getter name at `New` time, so each getter is called exactly once per
-tick regardless of how many rules reference it.
 
 ## Files
 
 ### New
-- `internal/engine/engine.go` — Engine struct, New, Run, dispatch loop
-- `internal/engine/engine_test.go` — table-driven tests (fake getter/setter,
-  injectable clock)
-- `internal/cli/start.go` — `start` cobra command (loads config, builds
-  engine, calls engine.Run)
+- `internal/tokenstore/store.go`      — Store interface + FromConfig factory
+- `internal/tokenstore/file.go`       — file-based backend
+- `internal/tokenstore/file_test.go`  — unit tests (injectable in-memory I/O)
+- `internal/tokenstore/dynamo.go`     — DynamoDB backend
+- `internal/tokenstore/dynamo_test.go`— unit tests using DynamoDB Local
 
 ### Updated
-- `internal/cli/root.go` — register `start` command
-
-## Test cases (all in-memory, no filesystem)
-1. `dispatches_status_when_event_is_active` — active event → setter called
-2. `skips_inactive_events` — future event → setter not called
-3. `applies_transforms_in_priority_order` — two rules match; higher-priority
-   rule's setter params win
-4. `first_matching_transform_wins_per_setter` — two transforms in one rule;
-   only first match dispatched
-5. `continues_after_getter_error` — getter returns error on tick 1, events on
-   tick 2; setter called on tick 2
-6. `stops_on_context_cancel` — cancel ctx → Run returns promptly
-7. `new_returns_error_for_missing_getter` — getter name not registered
-8. `new_returns_error_for_missing_setter` — setter name not registered
+- `compose.yml` — add DynamoDB Local dependency + `AWS_ENDPOINT_DYNAMODB`
+  and AWS credential env vars to `test-unit` service
 
 ## Implementation order (TDD)
-1. Write engine_test.go (all cases, fakes inline)
-2. Write engine.go (make tests pass)
-3. Write cli/start.go + update root.go
+1. file_test.go → file.go
+2. dynamo_test.go → dynamo.go
+3. store.go (interface + FromConfig)
+4. Update compose.yml
