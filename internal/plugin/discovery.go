@@ -1,7 +1,9 @@
 package plugin
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,32 +19,51 @@ const (
 
 // DiscoverAll scans binDir for status-getter-* and status-setter-* executables,
 // fetches their metadata, and registers them in the provided registries.
-// Non-plugin files and non-executable files are silently skipped.
+// A missing binDir is silently ignored.
 func DiscoverAll(binDir string, gr *getter.Registry, sr *setter.Registry) error {
-	entries, err := os.ReadDir(binDir)
+	return discoverFS(os.DirFS(binDir), binDir, gr, sr, NewExternalGetter, NewExternalSetter)
+}
+
+// DiscoverAllDefault scans the default plugin directory and registers
+// discovered plugins in the package-level default registries.
+func DiscoverAllDefault(binDir string) error {
+	return DiscoverAll(binDir, getter.DefaultRegistry(), setter.DefaultRegistry())
+}
+
+// discoverFS is the testable core: it reads from fsys, constructs plugin
+// instances via the injected factories, and registers them.
+func discoverFS(
+	fsys fs.FS,
+	baseDir string,
+	gr *getter.Registry,
+	sr *setter.Registry,
+	newGetter func(string) (*ExternalGetter, error),
+	newSetter func(string) (*ExternalSetter, error),
+) error {
+	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
-		return fmt.Errorf("plugin: scan %q: %w", binDir, err)
+		return fmt.Errorf("plugin: scan %q: %w", baseDir, err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
 		name := e.Name()
-		path := filepath.Join(binDir, name)
+		path := filepath.Join(baseDir, name)
 
 		switch {
 		case strings.HasPrefix(name, getterPrefix):
-			g, err := NewExternalGetter(path)
+			g, err := newGetter(path)
 			if err != nil {
 				return fmt.Errorf("plugin: load getter %q: %w", name, err)
 			}
 			gr.Register(g)
 
 		case strings.HasPrefix(name, setterPrefix):
-			s, err := NewExternalSetter(path)
+			s, err := newSetter(path)
 			if err != nil {
 				return fmt.Errorf("plugin: load setter %q: %w", name, err)
 			}
@@ -50,10 +71,4 @@ func DiscoverAll(binDir string, gr *getter.Registry, sr *setter.Registry) error 
 		}
 	}
 	return nil
-}
-
-// DiscoverAllDefault scans the default plugin directory ($XDG_CONFIG_HOME/status/bin)
-// and registers discovered plugins in the package-level default registries.
-func DiscoverAllDefault(binDir string) error {
-	return DiscoverAll(binDir, getter.DefaultRegistry(), setter.DefaultRegistry())
 }

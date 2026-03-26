@@ -9,9 +9,12 @@ import (
 	"os/exec"
 )
 
-// runBinary executes the binary at path with the given flag, piping stdin into
-// it and returning its stdout. Stderr is discarded.
-func runBinary(ctx context.Context, path, flag string, stdin io.Reader) ([]byte, error) {
+// invoker calls a plugin binary with a single flag and returns its stdout.
+// It is the seam used to inject fakes in tests.
+type invoker func(ctx context.Context, path, flag string, stdin io.Reader) ([]byte, error)
+
+// execInvoker is the production invoker that uses os/exec.
+func execInvoker(ctx context.Context, path, flag string, stdin io.Reader) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, path, flag)
 	cmd.Stdin = stdin
 	out, err := cmd.Output()
@@ -21,10 +24,9 @@ func runBinary(ctx context.Context, path, flag string, stdin io.Reader) ([]byte,
 	return out, nil
 }
 
-// fetchMetadata invokes path --metadata and decodes the response.
-func fetchMetadata(path string) (metadataResponse, error) {
-	ctx := context.Background()
-	out, err := runBinary(ctx, path, "--metadata", bytes.NewReader(nil))
+// fetchMetadata invokes path --metadata using inv and decodes the response.
+func fetchMetadata(path string, inv invoker) (metadataResponse, error) {
+	out, err := inv(context.Background(), path, "--metadata", bytes.NewReader(nil))
 	if err != nil {
 		return metadataResponse{}, err
 	}

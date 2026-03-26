@@ -16,6 +16,7 @@ type ExternalSetter struct {
 	binaryPath string
 	name       string
 	paramSpecs []pluginspec.ParamSpec
+	invoke     invoker
 }
 
 // NewExternalSetter reads metadata from the binary at path and returns an
@@ -25,18 +26,24 @@ func NewExternalSetter(path string) (*ExternalSetter, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("plugin: setter binary not found at %q: %w", path, err)
 	}
-	meta, err := fetchMetadata(path)
+	meta, err := fetchMetadata(path, execInvoker)
 	if err != nil {
 		return nil, fmt.Errorf("plugin: setter %q metadata: %w", path, err)
 	}
+	return newExternalSetterFromMeta(path, meta, execInvoker)
+}
+
+// newExternalSetterFromMeta builds an ExternalSetter from pre-fetched metadata.
+func newExternalSetterFromMeta(path string, meta metadataResponse, inv invoker) (*ExternalSetter, error) {
 	return &ExternalSetter{
 		binaryPath: path,
 		name:       meta.Name,
 		paramSpecs: meta.ParamSpecs,
+		invoke:     inv,
 	}, nil
 }
 
-func (s *ExternalSetter) Name() string                    { return s.name }
+func (s *ExternalSetter) Name() string                       { return s.name }
 func (s *ExternalSetter) ParamSpecs() []pluginspec.ParamSpec { return s.paramSpecs }
 
 func (s *ExternalSetter) SetStatus(ctx context.Context, st setter.Status) (setter.SetResult, error) {
@@ -50,7 +57,7 @@ func (s *ExternalSetter) SetStatus(ctx context.Context, st setter.Status) (sette
 		return setter.SetResult{}, fmt.Errorf("plugin: setter %q encode request: %w", s.name, err)
 	}
 
-	out, err := runBinary(ctx, s.binaryPath, "--set-status", &reqBuf)
+	out, err := s.invoke(ctx, s.binaryPath, "--set-status", &reqBuf)
 	if err != nil {
 		return setter.SetResult{}, fmt.Errorf("plugin: setter %q invocation failed: %w", s.name, err)
 	}

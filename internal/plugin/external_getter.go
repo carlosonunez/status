@@ -19,6 +19,7 @@ type ExternalGetter struct {
 	name        string
 	minInterval time.Duration
 	paramSpecs  []pluginspec.ParamSpec
+	invoke      invoker
 }
 
 // NewExternalGetter reads metadata from the binary at path and returns an
@@ -28,12 +29,18 @@ func NewExternalGetter(path string) (*ExternalGetter, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("plugin: getter binary not found at %q: %w", path, err)
 	}
-	meta, err := fetchMetadata(path)
+	meta, err := fetchMetadata(path, execInvoker)
 	if err != nil {
 		return nil, fmt.Errorf("plugin: getter %q metadata: %w", path, err)
 	}
+	return newExternalGetterFromMeta(path, meta, execInvoker)
+}
+
+// newExternalGetterFromMeta builds an ExternalGetter from pre-fetched metadata.
+func newExternalGetterFromMeta(path string, meta metadataResponse, inv invoker) (*ExternalGetter, error) {
 	interval := time.Duration(0)
 	if meta.MinInterval != "" {
+		var err error
 		interval, err = time.ParseDuration(meta.MinInterval)
 		if err != nil {
 			return nil, fmt.Errorf("plugin: getter %q bad min_interval %q: %w", path, meta.MinInterval, err)
@@ -44,11 +51,12 @@ func NewExternalGetter(path string) (*ExternalGetter, error) {
 		name:        meta.Name,
 		minInterval: interval,
 		paramSpecs:  meta.ParamSpecs,
+		invoke:      inv,
 	}, nil
 }
 
-func (g *ExternalGetter) Name() string                    { return g.name }
-func (g *ExternalGetter) MinInterval() time.Duration      { return g.minInterval }
+func (g *ExternalGetter) Name() string                       { return g.name }
+func (g *ExternalGetter) MinInterval() time.Duration         { return g.minInterval }
 func (g *ExternalGetter) ParamSpecs() []pluginspec.ParamSpec { return g.paramSpecs }
 
 func (g *ExternalGetter) GetEvents(ctx context.Context, p params.Params) ([]getter.Event, error) {
@@ -62,7 +70,7 @@ func (g *ExternalGetter) GetEvents(ctx context.Context, p params.Params) ([]gett
 		return nil, fmt.Errorf("plugin: getter %q encode request: %w", g.name, err)
 	}
 
-	out, err := runBinary(ctx, g.binaryPath, "--get-events", &reqBuf)
+	out, err := g.invoke(ctx, g.binaryPath, "--get-events", &reqBuf)
 	if err != nil {
 		return nil, fmt.Errorf("plugin: getter %q invocation failed: %w", g.name, err)
 	}
