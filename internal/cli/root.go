@@ -34,6 +34,7 @@ func NewRootCommand() *cobra.Command {
 		"Path to config file (default: ~/.config/status/config.yaml)")
 
 	root.AddCommand(newCheckCommand())
+	root.AddCommand(newStartCommand())
 
 	return root
 }

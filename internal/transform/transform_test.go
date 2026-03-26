@@ -169,6 +169,39 @@ func TestTransform_Apply(t *testing.T) {
 	}
 }
 
+func TestTransform_SetterNames(t *testing.T) {
+	type setterNamesTest struct {
+		TestName string
+		Setters  map[string]transform.StatusTemplate
+		Want     []string
+	}
+	tests := []setterNamesTest{
+		{
+			TestName: "single_setter",
+			Setters:  map[string]transform.StatusTemplate{"slack": p(nil)},
+			Want:     []string{"slack"},
+		},
+		{
+			TestName: "no_setters",
+			Setters:  map[string]transform.StatusTemplate{},
+			Want:     []string{},
+		},
+		{
+			TestName: "multiple_setters",
+			Setters:  map[string]transform.StatusTemplate{"slack": p(nil), "github": p(nil)},
+			Want:     []string{"slack", "github"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.TestName, func(t *testing.T) {
+			tr, err := transform.New(".*", tc.Setters)
+			require.NoError(t, err)
+			got := tr.SetterNames()
+			assert.ElementsMatch(t, tc.Want, got)
+		})
+	}
+}
+
 func TestNew_InvalidRegex(t *testing.T) {
 	_, err := transform.New(`[invalid`, map[string]transform.StatusTemplate{
 		"slack": p(map[string]any{"status_message": "test"}),

@@ -1,57 +1,102 @@
-# External Binary Plugin System
+# Phase 3: Event Loop Engine
 
 ## Goal
-Allow event getters and status setters to be compiled as separate binaries,
-discoverable from `$XDG_CONFIG_HOME/status/bin/`. Modeled after Docker/kubectl
-plugin conventions. JSON over stdin/stdout protocol.
+Build `internal/engine` — the core runtime that polls event getters, applies
+transforms, and dispatches statuses to setters. Also wire it into the `start`
+CLI command.
 
-## Convention
-- Getter plugins: `$XDG_CONFIG_HOME/status/bin/status-getter-<name>`
-- Setter plugins: `$XDG_CONFIG_HOME/status/bin/status-setter-<name>`
+## Design
 
-## Protocol
-All communication is JSON over stdin/stdout, one subprocess invocation per call.
+### Engine API
+```go
+type Engine struct {
+    rules   []*rule.Rule
+    getters *getter.Registry
+    setters *setter.Registry
+    now     func() time.Time  // injectable clock for tests
+}
 
-### Discovery (`--metadata`)
-Binary receives no stdin; prints JSON to stdout:
-```json
-{
-  "name": "google-calendar",
-  "type": "getter",
-  "min_interval": "1m",
-  "param_specs": [{"name": "calendar_id", "description": "...", "required": true, "type": "string"}]
+func New(cfg *config.Config, gr *getter.Registry, sr *setter.Registry) (*Engine, error)
+func (e *Engine) Run(ctx context.Context) error
+```
+
+`New` validates that every getter and setter name referenced in the config is
+registered; returns an error listing any missing names.
+
+`Run` starts one polling goroutine per unique getter, blocks until ctx is
+cancelled, then waits for all goroutines to stop.
+
+### Polling loop (per getter)
+```
+ticker := time.NewTicker(getter.MinInterval())
+for {
+    select {
+    case <-ctx.Done(): return
+    case <-ticker.C:
+        events, err := getter.GetEvents(ctx, params)
+        if err: log and continue
+        for each active event:
+            for each rule (sorted by priority) that uses this getter:
+                for each setter referenced by the rule's transforms:
+                    find first matching transform → dispatch Status
+    }
 }
 ```
 
-### GetEvents (`--get-events`)
-stdin:  `{"params": {"key": "value"}}`
-stdout: `{"events": [...], "error": "optional"}`
+### Event activity
+```go
+func isActive(e getter.Event, now time.Time) bool {
+    if e.AllDay {
+        // active if the event's start date is today (UTC)
+        today := now.UTC().Truncate(24 * time.Hour)
+        day   := e.StartsAt.UTC().Truncate(24 * time.Hour)
+        return today.Equal(day)
+    }
+    return !now.Before(e.StartsAt) && now.Before(e.EndsAt)
+}
+```
 
-### SetStatus (`--set-status`)
-stdin:  `{"params": {"key": "value"}}`
-stdout: `{"skipped": false, "response": "ok", "error": "optional"}`
+### Transform dispatch (per event, per setter)
+Iterate transforms of the matched rule in slice order (rules are
+already priority-sorted). The **first** transform that matches the event title
+AND targets the setter wins; later transforms for the same setter are skipped.
 
-## Files to Create
+### Error handling
+- Getter errors: log at warn level, continue polling
+- Setter errors: log at warn level, continue with next setter
+- No panics; engine keeps running until ctx is cancelled
 
-### pkg/pluginsdk/ (for external plugin authors — no internal deps)
-1. `pkg/pluginsdk/types.go` — DONE: Event, ParamSpec, SetResult, protocol messages
-2. `pkg/pluginsdk/pluginsdk.go` — GetterHandler/SetterHandler interfaces + ServeGetter/ServeSetter
-3. `pkg/pluginsdk/pluginsdk_test.go` — table-driven tests with injectable args/stdin/stdout
+### Grouped getter calls
+Multiple rules may share the same getter. The engine groups rules by
+getter name at `New` time, so each getter is called exactly once per
+tick regardless of how many rules reference it.
 
-### internal/plugin/ (host-side: discovery + subprocess wrappers)
-4. `internal/plugin/external_getter.go` — ExternalGetter implementing getter.EventGetter via subprocess
-5. `internal/plugin/external_getter_test.go` — tests using temp-dir fake shell-script plugins
-6. `internal/plugin/external_setter.go` — ExternalSetter implementing setter.StatusSetter via subprocess
-7. `internal/plugin/external_setter_test.go` — tests using temp-dir fake shell-script plugins
-8. `internal/plugin/discovery.go` — scan bin dir, invoke --metadata, register in default registries
-9. `internal/plugin/discovery_test.go` — tests using temp-dir with fake plugin scripts
+## Files
 
-### cmd/status/main.go update
-10. Call `plugin.DiscoverAll()` at startup (after blank imports, before root.Execute())
+### New
+- `internal/engine/engine.go` — Engine struct, New, Run, dispatch loop
+- `internal/engine/engine_test.go` — table-driven tests (fake getter/setter,
+  injectable clock)
+- `internal/cli/start.go` — `start` cobra command (loads config, builds
+  engine, calls engine.Run)
 
-## Order of Implementation (TDD)
-1. pkg/pluginsdk/pluginsdk_test.go → pkg/pluginsdk/pluginsdk.go (ServeGetter/ServeSetter)
-2. internal/plugin/external_getter_test.go → internal/plugin/external_getter.go
-3. internal/plugin/external_setter_test.go → internal/plugin/external_setter.go
-4. internal/plugin/discovery_test.go → internal/plugin/discovery.go
-5. Update cmd/status/main.go
+### Updated
+- `internal/cli/root.go` — register `start` command
+
+## Test cases (all in-memory, no filesystem)
+1. `dispatches_status_when_event_is_active` — active event → setter called
+2. `skips_inactive_events` — future event → setter not called
+3. `applies_transforms_in_priority_order` — two rules match; higher-priority
+   rule's setter params win
+4. `first_matching_transform_wins_per_setter` — two transforms in one rule;
+   only first match dispatched
+5. `continues_after_getter_error` — getter returns error on tick 1, events on
+   tick 2; setter called on tick 2
+6. `stops_on_context_cancel` — cancel ctx → Run returns promptly
+7. `new_returns_error_for_missing_getter` — getter name not registered
+8. `new_returns_error_for_missing_setter` — setter name not registered
+
+## Implementation order (TDD)
+1. Write engine_test.go (all cases, fakes inline)
+2. Write engine.go (make tests pass)
+3. Write cli/start.go + update root.go

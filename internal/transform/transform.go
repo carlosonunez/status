@@ -61,6 +61,15 @@ func (t *Transform) Apply(event getter.Event, setterName string) (setter.Status,
 	return setter.Status{Params: params.FromMap(resolved)}, true
 }
 
+// SetterNames returns the names of all setters configured on this transform.
+func (t *Transform) SetterNames() []string {
+	names := make([]string, 0, len(t.setters))
+	for name := range t.setters {
+		names = append(names, name)
+	}
+	return names
+}
+
 // substituteCaptures substitutes $N references in tpl with capture groups from
 // matching title against the transform's pattern.
 // $N is normalised to ${N} before substitution to avoid ambiguity when $N is
