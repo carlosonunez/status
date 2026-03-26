@@ -3,30 +3,22 @@ package transform
 import (
 	"fmt"
 	"regexp"
-	"time"
 
 	"github.com/carlosonunez/status/internal/getter"
+	"github.com/carlosonunez/status/internal/setter"
 )
 
-// StatusTemplate holds the un-resolved status fields for one setter within a transform.
-// MessageTpl may contain $N references that are replaced with regex capture groups.
+// StatusTemplate holds the un-resolved parameter map for one setter within a
+// transform. String values in Params may contain $N references that are
+// substituted with regex capture groups when the transform is applied.
 type StatusTemplate struct {
-	MessageTpl    string
-	Emoji         string
-	Duration      *time.Duration
-	IsOutOfOffice bool
-}
-
-// ResolvedStatus is a StatusTemplate with all $N references substituted.
-type ResolvedStatus struct {
-	Message       string
-	Emoji         string
-	Duration      *time.Duration
-	IsOutOfOffice bool
+	// Params holds setter-specific key/value pairs exactly as written in config.
+	// Each StatusSetter implementation decides which keys it uses.
+	Params map[string]any
 }
 
 // Transform matches an event title against a regex pattern and resolves status
-// templates for one or more setters.
+// parameters for one or more setters.
 type Transform struct {
 	Name    string
 	pattern *regexp.Regexp
@@ -47,40 +39,43 @@ func New(pattern string, setters map[string]StatusTemplate) (*Transform, error) 
 }
 
 // Apply attempts to match event.Title against the transform's pattern.
-// If the pattern matches and setterName is configured on this transform,
-// it returns the resolved ResolvedStatus and true.
-// Returns a zero ResolvedStatus and false otherwise.
-func (t *Transform) Apply(event getter.Event, setterName string) (ResolvedStatus, bool) {
+// If the pattern matches and setterName is configured on this transform, it
+// returns a setter.Status whose Params have all string values resolved (with
+// $N capture-group references substituted) and true.
+// Returns a zero setter.Status and false otherwise.
+func (t *Transform) Apply(event getter.Event, setterName string) (setter.Status, bool) {
 	tmpl, ok := t.setters[setterName]
 	if !ok {
-		return ResolvedStatus{}, false
+		return setter.Status{}, false
 	}
-
 	if !t.pattern.MatchString(event.Title) {
-		return ResolvedStatus{}, false
+		return setter.Status{}, false
 	}
 
-	return ResolvedStatus{
-		Message:       t.resolveTemplate(tmpl.MessageTpl, event.Title),
-		Emoji:         tmpl.Emoji,
-		Duration:      tmpl.Duration,
-		IsOutOfOffice: tmpl.IsOutOfOffice,
-	}, true
+	resolved := make(map[string]any, len(tmpl.Params))
+	for k, v := range tmpl.Params {
+		if s, ok := v.(string); ok {
+			resolved[k] = t.substituteCaptures(s, event.Title)
+		} else {
+			resolved[k] = v
+		}
+	}
+	return setter.Status{Params: resolved}, true
 }
 
-// resolveTemplate substitutes $N references in tpl with the capture groups
-// from matching title against the transform's pattern.
-// $N is normalised to ${N} before substitution to avoid ambiguity when $N
-// is adjacent to alphanumeric characters.
-func (t *Transform) resolveTemplate(tpl, title string) string {
-	normalised := normalizeDollarN(tpl)
-	return t.pattern.ReplaceAllString(title, normalised)
+// substituteCaptures substitutes $N references in tpl with capture groups from
+// matching title against the transform's pattern.
+// $N is normalised to ${N} before substitution to avoid ambiguity when $N is
+// immediately adjacent to alphanumeric characters (e.g. "$1foo").
+func (t *Transform) substituteCaptures(tpl, title string) string {
+	return t.pattern.ReplaceAllString(title, normalizeDollarN(tpl))
 }
 
-// normalizeDollarN converts bare $N references (e.g. $1, $12) to the
-// unambiguous ${N} form required by regexp.ReplaceAllString.
+// dollarN matches bare $N references (e.g. $1, $12).
 var dollarN = regexp.MustCompile(`\$(\d+)`)
 
+// normalizeDollarN converts $N to ${N} for unambiguous use in
+// regexp.ReplaceAllString.
 func normalizeDollarN(s string) string {
 	return dollarN.ReplaceAllString(s, "$${${1}}")
 }

@@ -3,7 +3,6 @@ package rule
 import (
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/carlosonunez/status/internal/config"
 	"github.com/carlosonunez/status/internal/transform"
@@ -27,7 +26,11 @@ func FromConfig(cfg config.RuleConfig) (*Rule, error) {
 	for _, tc := range cfg.Transforms {
 		setters := make(map[string]transform.StatusTemplate, len(tc.StatusSetters))
 		for _, ss := range tc.StatusSetters {
-			setters[ss.Name] = statusTemplateFromParams(ss.Params)
+			params := ss.Params
+			if params == nil {
+				params = map[string]any{}
+			}
+			setters[ss.Name] = transform.StatusTemplate{Params: params}
 		}
 
 		tr, err := transform.New(tc.Pattern, setters)
@@ -60,36 +63,4 @@ func SortByPriority(rules []*Rule) {
 		}
 		return pi < pj
 	})
-}
-
-// statusTemplateFromParams converts the raw params map from a StatusSetterConfig
-// into a typed StatusTemplate.
-func statusTemplateFromParams(params map[string]any) transform.StatusTemplate {
-	if params == nil {
-		return transform.StatusTemplate{}
-	}
-
-	tmpl := transform.StatusTemplate{}
-
-	if v, ok := params["status_message"].(string); ok {
-		tmpl.MessageTpl = v
-	}
-	if v, ok := params["emoji"].(string); ok {
-		tmpl.Emoji = v
-	}
-	if v, ok := params["is_out_of_office"].(bool); ok {
-		tmpl.IsOutOfOffice = v
-	}
-	if v, ok := params["duration"].(string); ok && v != "" {
-		if d, err := parseDuration(v); err == nil {
-			tmpl.Duration = &d
-		}
-	}
-
-	return tmpl
-}
-
-// parseDuration handles Go-style durations (e.g. "1h30m").
-func parseDuration(s string) (time.Duration, error) {
-	return time.ParseDuration(s)
 }
