@@ -4,6 +4,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/carlosonunez/status/internal/getter"
+	"github.com/carlosonunez/status/internal/setter"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -33,6 +35,8 @@ func NewRootCommand() *cobra.Command {
 
 	root.AddCommand(newCheckCommand())
 	root.AddCommand(newStartCommand())
+	root.AddCommand(newIntegrationCommand(getter.DefaultRegistry(), setter.DefaultRegistry()))
+	root.AddCommand(newAuthCommand(getter.DefaultRegistry(), setter.DefaultRegistry()))
 
 	return root
 }

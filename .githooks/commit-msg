@@ -3,4 +3,4 @@ set -e
 
 gitleaks protect --staged --no-banner
 gitleaks dir --no-banner
-gitleaks git --no-banner
+gitleaks git --no-banner --platform github
