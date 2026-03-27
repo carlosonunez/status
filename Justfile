@@ -6,6 +6,9 @@ goos    := if os() == "macos" { "darwin" } else if os() == "windows" { "windows"
 goarch  := if arch() == "aarch64" { "arm64" } else { "amd64" }
 bin_ext := if os() == "windows" { ".exe" } else { "" }
 
+# Derive version from the nearest git tag; fall back to "dev".
+version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
+
 # Show available recipes
 default:
     @just --list
@@ -14,11 +17,11 @@ default:
 
 # Compile the status binary for the host platform (output: ./bin/status[.exe])
 build:
-    docker compose run --rm -e GOOS={{goos}} -e GOARCH={{goarch}} -e BIN_EXT={{bin_ext}} build
+    docker compose run --rm -e GOOS={{goos}} -e GOARCH={{goarch}} -e BIN_EXT={{bin_ext}} -e VERSION={{version}} build
 
 # Compile the status binary natively without Docker (output: ./bin/status[.exe])
 build-local:
-    go build -o bin/status{{bin_ext}} ./cmd/status
+    go build -ldflags "-X main.version={{version}}" -o bin/status{{bin_ext}} ./cmd/status
 
 # ── test ──────────────────────────────────────────────────────────────────────
 

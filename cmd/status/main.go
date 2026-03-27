@@ -17,6 +17,13 @@ import (
 	_ "github.com/carlosonunez/status/internal/setter/dummy"
 )
 
+// version is overridden at build time via:
+//
+//	-ldflags "-X main.version=v1.2.3"
+//
+// Defaults to "dev" for local/untagged builds.
+var version = "dev"
+
 func main() {
 	binDir := filepath.Join(xdg.ConfigHome, "status", "bin")
 	if err := plugin.DiscoverAllDefault(binDir); err != nil {
@@ -24,7 +31,7 @@ func main() {
 		logrus.WithError(err).Warn("plugin discovery failed")
 	}
 
-	root := cli.NewRootCommand()
+	root := cli.NewRootCommand(version)
 	cmd, err := root.ExecuteC()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, cmd.UsageString())

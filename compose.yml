@@ -11,12 +11,13 @@ services:
       - .:/app
       - go-cache:/root/.cache/go-build
       - gomod-cache:/go/pkg/mod
-    command: ["sh", "-c", "go build -o bin/status$$BIN_EXT ./cmd/status"]
+    command: ["sh", "-c", "go build -ldflags \"-X main.version=$VERSION\" -o bin/status$$BIN_EXT ./cmd/status"]
     environment:
       CGO_ENABLED: "0"
       GOOS: ${GOOS:-linux}
       GOARCH: ${GOARCH:-amd64}
       BIN_EXT: ${BIN_EXT:-}
+      VERSION: ${VERSION:-dev}
 
   # Runs the full test suite. DynamoDB Local is started as a dependency.
   test:

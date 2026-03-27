@@ -17,7 +17,9 @@ var (
 )
 
 // NewRootCommand builds and returns the root cobra command.
-func NewRootCommand() *cobra.Command {
+// version is the semver string injected at build time (e.g. "v1.2.3"); pass
+// "dev" when building outside of a release pipeline.
+func NewRootCommand(version string) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "status",
 		Short: "Keep your status in sync with your whereabouts",
@@ -36,6 +38,7 @@ func NewRootCommand() *cobra.Command {
 	root.SilenceErrors = true
 	root.SilenceUsage = true
 
+	root.AddCommand(newVersionCommand(version))
 	root.AddCommand(newCheckCommand())
 	root.AddCommand(newStartCommand())
 	root.AddCommand(newIntegrationCommand(getter.DefaultRegistry(), setter.DefaultRegistry()))
