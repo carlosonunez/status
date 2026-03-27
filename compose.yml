@@ -2,7 +2,8 @@ name: status-bot
 
 services:
 
-  # Compiles the status binary. Output lands in ./bin/status via bind mount.
+  # Compiles the status binary. GOOS/GOARCH/BIN_EXT are injected by the
+  # Justfile so the output binary matches the host platform.
   build:
     image: golang:1.24-alpine
     working_dir: /app
@@ -10,11 +11,12 @@ services:
       - .:/app
       - go-cache:/root/.cache/go-build
       - gomod-cache:/go/pkg/mod
-    command: go build -o bin/status ./cmd/status
+    command: ["sh", "-c", "go build -o bin/status$$BIN_EXT ./cmd/status"]
     environment:
       CGO_ENABLED: "0"
-      GOOS: linux
-      GOARCH: arm64
+      GOOS: ${GOOS:-linux}
+      GOARCH: ${GOARCH:-amd64}
+      BIN_EXT: ${BIN_EXT:-}
 
   # Runs the full test suite. DynamoDB Local is started as a dependency.
   test:
