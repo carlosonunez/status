@@ -10,7 +10,7 @@ import (
 )
 
 func TestStart_MissingConfigReturnsHelpfulError(t *testing.T) {
-	root := cli.NewRootCommand("dev")
+	root := cli.NewRootCommand("dev", "unknown", "unknown")
 	var buf bytes.Buffer
 	root.SetOut(&buf)
 	root.SetErr(&buf)

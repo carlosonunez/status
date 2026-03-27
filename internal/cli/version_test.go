@@ -12,12 +12,14 @@ import (
 type versionTest struct {
 	TestName string
 	Version  string
+	Commit   string
+	Date     string
 	WantOut  string
 }
 
 func (tc versionTest) RunTest(t *testing.T) {
 	t.Helper()
-	root := cli.NewRootCommand(tc.Version)
+	root := cli.NewRootCommand(tc.Version, tc.Commit, tc.Date)
 	var buf bytes.Buffer
 	root.SetOut(&buf)
 	root.SetErr(&buf)
@@ -30,14 +32,18 @@ func (tc versionTest) RunTest(t *testing.T) {
 func TestVersion(t *testing.T) {
 	tests := []versionTest{
 		{
-			TestName: "shows_injected_version",
+			TestName: "shows_full_build_info",
 			Version:  "v1.2.3",
-			WantOut:  "v1.2.3",
+			Commit:   "abc1234",
+			Date:     "2026-03-27",
+			WantOut:  "status version v1.2.3 (Commit: abc1234, Last Updated: 2026-03-27)",
 		},
 		{
-			TestName: "shows_dev_when_unset",
+			TestName: "shows_dev_defaults",
 			Version:  "dev",
-			WantOut:  "dev",
+			Commit:   "unknown",
+			Date:     "unknown",
+			WantOut:  "status version dev (Commit: unknown, Last Updated: unknown)",
 		},
 	}
 	for _, tc := range tests {

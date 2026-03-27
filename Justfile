@@ -8,6 +8,8 @@ bin_ext := if os() == "windows" { ".exe" } else { "" }
 
 # Derive version from the nearest git tag; fall back to "dev".
 version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
+commit  := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
+date    := `git log -1 --format=%cs HEAD 2>/dev/null || echo "unknown"`
 
 # Show available recipes
 default:
@@ -17,11 +19,11 @@ default:
 
 # Compile the status binary for the host platform (output: ./bin/status[.exe])
 build:
-    docker compose run --rm -e GOOS={{goos}} -e GOARCH={{goarch}} -e BIN_EXT={{bin_ext}} -e VERSION={{version}} build
+    docker compose run --rm -e GOOS={{goos}} -e GOARCH={{goarch}} -e BIN_EXT={{bin_ext}} -e VERSION={{version}} -e COMMIT={{commit}} -e DATE={{date}} build
 
 # Compile the status binary natively without Docker (output: ./bin/status[.exe])
 build-local:
-    go build -ldflags "-X main.version={{version}}" -o bin/status{{bin_ext}} ./cmd/status
+    go build -ldflags "-X main.version={{version}} -X main.commit={{commit}} -X main.date={{date}}" -o bin/status{{bin_ext}} ./cmd/status
 
 # ── test ──────────────────────────────────────────────────────────────────────
 

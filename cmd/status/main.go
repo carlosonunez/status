@@ -17,12 +17,14 @@ import (
 	_ "github.com/carlosonunez/status/internal/setter/dummy"
 )
 
-// version is overridden at build time via:
+// Build metadata overridden at build time via:
 //
-//	-ldflags "-X main.version=v1.2.3"
-//
-// Defaults to "dev" for local/untagged builds.
-var version = "dev"
+//	-ldflags "-X main.version=v1.2.3 -X main.commit=abc1234 -X main.date=2026-03-27"
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+)
 
 func main() {
 	binDir := filepath.Join(xdg.ConfigHome, "status", "bin")
@@ -31,7 +33,7 @@ func main() {
 		logrus.WithError(err).Warn("plugin discovery failed")
 	}
 
-	root := cli.NewRootCommand(version)
+	root := cli.NewRootCommand(version, commit, date)
 	cmd, err := root.ExecuteC()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, cmd.UsageString())
