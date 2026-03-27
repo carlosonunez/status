@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -27,6 +28,9 @@ func newStartCommand() *cobra.Command {
 
 			cfg, err := config.Load(path)
 			if err != nil {
+				if errors.Is(err, config.ErrNotFound) {
+					return fmt.Errorf("Status is not configured. Please run `status auth login` to begin if this is your first time running Status.")
+				}
 				return fmt.Errorf("load config: %w", err)
 			}
 

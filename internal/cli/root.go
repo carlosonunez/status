@@ -33,6 +33,9 @@ func NewRootCommand() *cobra.Command {
 	root.PersistentFlags().StringVar(&cfgPath, "config", "",
 		"Path to config file (default: ~/.config/status/config.yaml)")
 
+	root.SilenceErrors = true
+	root.SilenceUsage = true
+
 	root.AddCommand(newCheckCommand())
 	root.AddCommand(newStartCommand())
 	root.AddCommand(newIntegrationCommand(getter.DefaultRegistry(), setter.DefaultRegistry()))

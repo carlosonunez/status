@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -24,7 +25,10 @@ func main() {
 	}
 
 	root := cli.NewRootCommand()
-	if err := root.Execute(); err != nil {
+	cmd, err := root.ExecuteC()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, cmd.UsageString())
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		os.Exit(1)
 	}
 }

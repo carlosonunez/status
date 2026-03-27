@@ -12,6 +12,9 @@ import (
 
 const appName = "status"
 
+// ErrNotFound is returned by Load when the config file does not exist.
+var ErrNotFound = errors.New("config file not found")
+
 // DefaultPath returns the OS-appropriate default path for the Status config file.
 // On Linux/macOS this is $XDG_CONFIG_HOME/status/config.yaml (typically
 // ~/.config/status/config.yaml). On Windows it resolves via XDG as well.
@@ -29,7 +32,7 @@ func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("config file not found at %s: run 'status check config' for help", path)
+			return nil, fmt.Errorf("%w at %s: run 'status check config' for help", ErrNotFound, path)
 		}
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
