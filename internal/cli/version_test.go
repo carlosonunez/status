@@ -39,11 +39,11 @@ func TestVersion(t *testing.T) {
 			WantOut:  "status version v1.2.3 (Commit: abc1234, Last Updated: 2026-03-27)",
 		},
 		{
-			TestName: "shows_dev_defaults",
-			Version:  "dev",
+			TestName: "shows_NO_VERSION_when_untagged",
+			Version:  "NO_VERSION",
 			Commit:   "unknown",
 			Date:     "unknown",
-			WantOut:  "status version dev (Commit: unknown, Last Updated: unknown)",
+			WantOut:  "status version NO_VERSION (Commit: unknown, Last Updated: unknown)",
 		},
 	}
 	for _, tc := range tests {

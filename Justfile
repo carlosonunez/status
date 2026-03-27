@@ -6,8 +6,8 @@ goos    := if os() == "macos" { "darwin" } else if os() == "windows" { "windows"
 goarch  := if arch() == "aarch64" { "arm64" } else { "amd64" }
 bin_ext := if os() == "windows" { ".exe" } else { "" }
 
-# Derive version from the nearest git tag; fall back to "dev".
-version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
+# Use the exact git tag on HEAD if it exists; otherwise NO_VERSION.
+version := `git describe --tags --exact-match HEAD 2>/dev/null || echo "NO_VERSION"`
 commit  := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
 date    := `git log -1 --format=%cs HEAD 2>/dev/null || echo "unknown"`
 

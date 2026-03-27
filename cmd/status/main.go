@@ -21,7 +21,7 @@ import (
 //
 //	-ldflags "-X main.version=v1.2.3 -X main.commit=abc1234 -X main.date=2026-03-27"
 var (
-	version = "dev"
+	version = "NO_VERSION"
 	commit  = "unknown"
 	date    = "unknown"
 )
