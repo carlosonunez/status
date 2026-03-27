@@ -2,6 +2,13 @@ package pluginspec
 
 import "context"
 
+// Hidden is an optional interface for integrations that should not appear in
+// "status integration list" or "status integration show". Integrations that
+// return true are treated as invisible to the user (e.g. dummy/dev-only plugins).
+type Hidden interface {
+	Hidden() bool
+}
+
 // Described is an optional interface for integrations that provide a
 // human-readable description, shown by "status integration show".
 type Described interface {

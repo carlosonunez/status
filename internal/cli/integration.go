@@ -79,6 +79,9 @@ func buildListEntries(gr *getter.Registry, sr *setter.Registry, typeFilter strin
 	var entries []integrationEntry
 	if typeFilter == "" || typeFilter == "event-getter" {
 		for _, g := range gr.All() {
+			if isHidden(g) {
+				continue
+			}
 			entries = append(entries, integrationEntry{
 				Type:       "event-getter",
 				Name:       g.Name(),
@@ -89,6 +92,9 @@ func buildListEntries(gr *getter.Registry, sr *setter.Registry, typeFilter strin
 	}
 	if typeFilter == "" || typeFilter == "status-setter" {
 		for _, s := range sr.All() {
+			if isHidden(s) {
+				continue
+			}
 			entries = append(entries, integrationEntry{
 				Type:       "status-setter",
 				Name:       s.Name(),
@@ -163,9 +169,15 @@ func buildShowDetails(gr *getter.Registry, sr *setter.Registry, names string, al
 	if all {
 		var details []integrationDetail
 		for _, g := range gr.All() {
+			if isHidden(g) {
+				continue
+			}
 			details = append(details, detailFromGetter(g))
 		}
 		for _, s := range sr.All() {
+			if isHidden(s) {
+				continue
+			}
 			details = append(details, detailFromSetter(s))
 		}
 		return details, nil
@@ -176,11 +188,11 @@ func buildShowDetails(gr *getter.Registry, sr *setter.Registry, names string, al
 	var details []integrationDetail
 	for _, name := range strings.Split(names, ",") {
 		name = strings.TrimSpace(name)
-		if g, err := gr.Get(name); err == nil {
+		if g, err := gr.Get(name); err == nil && !isHidden(g) {
 			details = append(details, detailFromGetter(g))
 			continue
 		}
-		if s, err := sr.Get(name); err == nil {
+		if s, err := sr.Get(name); err == nil && !isHidden(s) {
 			details = append(details, detailFromSetter(s))
 			continue
 		}
@@ -301,6 +313,13 @@ func pageOrPrint(w io.Writer, content string, paginate bool) error {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+func isHidden(v any) bool {
+	if h, ok := v.(pluginspec.Hidden); ok {
+		return h.Hidden()
+	}
+	return false
+}
 
 func sourceOf(v any) string {
 	if s, ok := v.(pluginspec.Sourced); ok {

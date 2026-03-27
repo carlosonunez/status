@@ -33,6 +33,7 @@ func (d *DummySetter) Received() []setter.Status {
 }
 
 func (d *DummySetter) Name() string { return name }
+func (d *DummySetter) Hidden() bool  { return true }
 
 func (d *DummySetter) ParamSpecs() []pluginspec.ParamSpec { return nil }
 

@@ -26,6 +26,7 @@ func New(events ...getter.Event) *DummyGetter {
 }
 
 func (d *DummyGetter) Name() string { return name }
+func (d *DummyGetter) Hidden() bool  { return true }
 
 func (d *DummyGetter) ParamSpecs() []pluginspec.ParamSpec { return nil }
 

@@ -26,6 +26,7 @@ type fakeIntGetter struct {
 	source string
 	auth   []pluginspec.AuthParam
 	notes  []string
+	hidden bool
 }
 
 func (f *fakeIntGetter) Name() string                        { return f.name }
@@ -34,10 +35,11 @@ func (f *fakeIntGetter) MinInterval() time.Duration          { return time.Minut
 func (f *fakeIntGetter) GetEvents(_ context.Context, _ params.Params) ([]getter.Event, error) {
 	return nil, nil
 }
-func (f *fakeIntGetter) Description() string          { return f.desc }
-func (f *fakeIntGetter) Source() string               { return f.source }
+func (f *fakeIntGetter) Description() string               { return f.desc }
+func (f *fakeIntGetter) Source() string                    { return f.source }
 func (f *fakeIntGetter) AuthParams() []pluginspec.AuthParam { return f.auth }
-func (f *fakeIntGetter) AuthNotes() []string          { return f.notes }
+func (f *fakeIntGetter) AuthNotes() []string               { return f.notes }
+func (f *fakeIntGetter) Hidden() bool                      { return f.hidden }
 
 type fakeIntSetter struct {
 	name   string
@@ -46,6 +48,7 @@ type fakeIntSetter struct {
 	source string
 	auth   []pluginspec.AuthParam
 	notes  []string
+	hidden bool
 }
 
 func (f *fakeIntSetter) Name() string                        { return f.name }
@@ -53,10 +56,11 @@ func (f *fakeIntSetter) ParamSpecs() []pluginspec.ParamSpec  { return f.specs }
 func (f *fakeIntSetter) SetStatus(_ context.Context, _ setter.Status) (setter.SetResult, error) {
 	return setter.SetResult{}, nil
 }
-func (f *fakeIntSetter) Description() string          { return f.desc }
-func (f *fakeIntSetter) Source() string               { return f.source }
+func (f *fakeIntSetter) Description() string               { return f.desc }
+func (f *fakeIntSetter) Source() string                    { return f.source }
 func (f *fakeIntSetter) AuthParams() []pluginspec.AuthParam { return f.auth }
-func (f *fakeIntSetter) AuthNotes() []string          { return f.notes }
+func (f *fakeIntSetter) AuthNotes() []string               { return f.notes }
+func (f *fakeIntSetter) Hidden() bool                      { return f.hidden }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -176,6 +180,18 @@ func TestIntegrationList(t *testing.T) {
 			Args:     []string{"--format=yaml"},
 			WantContains: []string{"type:", "name:", "my_getter"},
 		},
+		{
+			TestName: "hidden_getter_excluded",
+			Getters:  []*fakeIntGetter{{name: "visible"}, {name: "hidden_one", hidden: true}},
+			WantContains:    []string{"visible"},
+			WantNotContains: []string{"hidden_one"},
+		},
+		{
+			TestName: "hidden_setter_excluded",
+			Setters:  []*fakeIntSetter{{name: "visible"}, {name: "hidden_one", hidden: true}},
+			WantContains:    []string{"visible"},
+			WantNotContains: []string{"hidden_one"},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.TestName, func(t *testing.T) {
@@ -266,6 +282,19 @@ func TestIntegrationShow(t *testing.T) {
 			Setters:  []*fakeIntSetter{{name: "setter_b"}},
 			Args:     []string{"--all"},
 			WantContains: []string{"getter_a", "setter_b"},
+		},
+		{
+			TestName: "hidden_excluded_from_all",
+			Getters:  []*fakeIntGetter{{name: "getter_a"}, {name: "hidden_getter", hidden: true}},
+			Args:     []string{"--all"},
+			WantContains:    []string{"getter_a"},
+			WantNotContains: []string{"hidden_getter"},
+		},
+		{
+			TestName: "hidden_not_findable_by_name",
+			Getters:  []*fakeIntGetter{{name: "hidden_getter", hidden: true}},
+			Args:     []string{"--name=hidden_getter"},
+			WantErr:  true,
 		},
 		{
 			TestName: "multiple_names",
