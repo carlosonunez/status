@@ -1,0 +1,66 @@
+# Phase 4: Token Store
+
+## Goal
+Build `internal/tokenstore` — a pluggable credential storage layer used by
+OAuth-based getters and setters (Slack, Google Calendar, etc.) to persist and
+retrieve access/refresh tokens.
+
+## Interface
+
+```go
+// Store persists and retrieves opaque credential strings keyed by
+// (service, key). Service is e.g. "slack" or "google_calendar";
+// key is e.g. "access_token" or "refresh_token".
+type Store interface {
+    Get(service, key string) (string, error)
+    Set(service, key string, value string) error
+    Delete(service, key string) error
+}
+```
+
+## Backends
+
+### File backend (default)
+- Stores tokens in a JSON file at `~/.config/status/tokens.json`
+  (or the path from `FileStoreConfig.Path`)
+- Format: `{"slack": {"access_token": "xoxp-...", ...}, ...}`
+- Reads the file on every `Get`; writes the whole file on every `Set`/`Delete`
+- Safe for single-process use; protected by an in-process mutex
+- Unit tests: inject a `readWriter` interface (in-memory bytes.Buffer) — no
+  real files
+
+### DynamoDB backend
+- Table schema: partition key `service` (S), sort key `key` (S), attribute
+  `value` (S)
+- Uses `aws-sdk-go-v2` (add to go.mod)
+- Endpoint from `AWS_ENDPOINT_DYNAMODB` env var (falls back to
+  `DynamoStoreConfig.Endpoint`, then AWS default)
+- Credentials from the default AWS credential chain
+- Unit tests: connect to DynamoDB Local via `AWS_ENDPOINT_DYNAMODB`
+  (default `http://localhost:8000`); skip with `t.Skip` if unreachable
+- Each test creates a uniquely-named table, deletes it in `t.Cleanup`
+
+## Factory
+
+```go
+func FromConfig(cfg config.TokenStoreConfig) (Store, error)
+```
+
+## Files
+
+### New
+- `internal/tokenstore/store.go`      — Store interface + FromConfig factory
+- `internal/tokenstore/file.go`       — file-based backend
+- `internal/tokenstore/file_test.go`  — unit tests (injectable in-memory I/O)
+- `internal/tokenstore/dynamo.go`     — DynamoDB backend
+- `internal/tokenstore/dynamo_test.go`— unit tests using DynamoDB Local
+
+### Updated
+- `compose.yml` — add DynamoDB Local dependency + `AWS_ENDPOINT_DYNAMODB`
+  and AWS credential env vars to `test-unit` service
+
+## Implementation order (TDD)
+1. file_test.go → file.go
+2. dynamo_test.go → dynamo.go
+3. store.go (interface + FromConfig)
+4. Update compose.yml
