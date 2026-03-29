@@ -12,11 +12,14 @@ import (
 )
 
 // ExternalSetter implements setter.StatusSetter by invoking an external binary.
+// When the binary reports supports_auth:true in its metadata it also
+// implements pluginspec.Authenticator.
 type ExternalSetter struct {
-	binaryPath string
-	name       string
-	paramSpecs []pluginspec.ParamSpec
-	invoke     invoker
+	binaryPath   string
+	name         string
+	paramSpecs   []pluginspec.ParamSpec
+	supportsAuth bool
+	invoke       invoker
 }
 
 // NewExternalSetter reads metadata from the binary at path and returns an
@@ -36,10 +39,11 @@ func NewExternalSetter(path string) (*ExternalSetter, error) {
 // newExternalSetterFromMeta builds an ExternalSetter from pre-fetched metadata.
 func newExternalSetterFromMeta(path string, meta metadataResponse, inv invoker) (*ExternalSetter, error) {
 	return &ExternalSetter{
-		binaryPath: path,
-		name:       meta.Name,
-		paramSpecs: meta.ParamSpecs,
-		invoke:     inv,
+		binaryPath:   path,
+		name:         meta.Name,
+		paramSpecs:   meta.ParamSpecs,
+		supportsAuth: meta.SupportsAuth,
+		invoke:       inv,
 	}, nil
 }
 
@@ -71,6 +75,43 @@ func (s *ExternalSetter) SetStatus(ctx context.Context, st setter.Status) (sette
 	}
 	return setter.SetResult{Skipped: resp.Skipped, Response: resp.Response}, nil
 }
+
+// Authenticate implements pluginspec.Authenticator by invoking the binary with
+// --authenticate. The binary runs the full auth flow (printing prompts to
+// stderr so the user sees them) and returns acquired tokens as JSON.
+// The caller is responsible for storing the returned tokens in the TokenStore.
+func (s *ExternalSetter) Authenticate(ctx context.Context, store pluginspec.TokenStore) error {
+	if !s.supportsAuth {
+		return fmt.Errorf("plugin: setter %q does not support authentication", s.name)
+	}
+	var reqBuf bytes.Buffer
+	if err := json.NewEncoder(&reqBuf).Encode(authenticateRequest{Params: map[string]any{}}); err != nil {
+		return fmt.Errorf("plugin: setter %q encode auth request: %w", s.name, err)
+	}
+
+	out, err := s.invoke(ctx, s.binaryPath, "--authenticate", &reqBuf)
+	if err != nil {
+		return fmt.Errorf("plugin: setter %q authenticate invocation: %w", s.name, err)
+	}
+
+	var resp authenticateResponse
+	if err := json.Unmarshal(out, &resp); err != nil {
+		return fmt.Errorf("plugin: setter %q bad authenticate response: %w", s.name, err)
+	}
+	if resp.Error != "" {
+		return fmt.Errorf("plugin: setter %q authenticate: %s", s.name, resp.Error)
+	}
+
+	for k, v := range resp.Tokens {
+		if err := store.Set(s.name, k, v); err != nil {
+			return fmt.Errorf("plugin: setter %q store token %q: %w", s.name, k, err)
+		}
+	}
+	return nil
+}
+
+// SupportsAuth reports whether this setter's binary implements the auth flow.
+func (s *ExternalSetter) SupportsAuth() bool { return s.supportsAuth }
 
 // Ensure ExternalSetter satisfies the interface at compile time.
 var _ setter.StatusSetter = (*ExternalSetter)(nil)
