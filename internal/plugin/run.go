@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 )
 
@@ -14,9 +15,13 @@ import (
 type invoker func(ctx context.Context, path, flag string, stdin io.Reader) ([]byte, error)
 
 // execInvoker is the production invoker that uses os/exec.
+// For --authenticate the binary writes user-facing prompts to stderr (which
+// flows straight to the terminal) and writes the JSON result to stdout; we
+// capture stdout while leaving stderr connected to the process's terminal.
 func execInvoker(ctx context.Context, path, flag string, stdin io.Reader) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, path, flag)
 	cmd.Stdin = stdin
+	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("exec %q %s: %w", path, flag, err)

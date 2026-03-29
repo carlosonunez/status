@@ -7,6 +7,7 @@ package pluginsdk
 import (
 	"encoding/json"
 	"io"
+	"os"
 )
 
 // GetterMetadata describes a getter plugin returned by its --metadata flag.
@@ -101,7 +102,7 @@ func ServeGetter(h GetterHandler, args []string, in io.Reader, out io.Writer) in
 			_ = enc.Encode(authenticateResponse{Error: "decode request: " + err.Error()})
 			return 1
 		}
-		tokens, err := ah.Authenticate(req.Params, out)
+		tokens, err := ah.Authenticate(req.Params, os.Stderr)
 		resp := authenticateResponse{Tokens: tokens}
 		if err != nil {
 			resp.Error = err.Error()
@@ -176,7 +177,7 @@ func ServeSetter(h SetterHandler, args []string, in io.Reader, out io.Writer) in
 			_ = enc.Encode(authenticateResponse{Error: "decode request: " + err.Error()})
 			return 1
 		}
-		tokens, err := ah.Authenticate(req.Params, out)
+		tokens, err := ah.Authenticate(req.Params, os.Stderr)
 		resp := authenticateResponse{Tokens: tokens}
 		if err != nil {
 			resp.Error = err.Error()
