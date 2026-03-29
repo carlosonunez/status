@@ -3,6 +3,7 @@ package pluginsdk_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +39,21 @@ func (fakeGetter) GetEvents(params map[string]any) ([]pluginsdk.Event, error) {
 	}, nil
 }
 
+// fakeGetterWithAuth also implements AuthHandler.
+type fakeGetterWithAuth struct{ fakeGetter }
+
+func (fakeGetterWithAuth) Metadata() pluginsdk.GetterMetadata {
+	m := fakeGetter{}.Metadata()
+	m.Name = "fake-getter-auth"
+	m.SupportsAuth = true
+	return m
+}
+
+func (fakeGetterWithAuth) Authenticate(params map[string]any, _ io.Writer) (map[string]string, error) {
+	key, _ := params["key"].(string)
+	return map[string]string{"token": "tok-" + key}, nil
+}
+
 type fakeSetter struct{}
 
 func (fakeSetter) Metadata() pluginsdk.SetterMetadata {
@@ -50,6 +66,13 @@ func (fakeSetter) Metadata() pluginsdk.SetterMetadata {
 func (fakeSetter) SetStatus(params map[string]any) (pluginsdk.SetResult, error) {
 	msg, _ := params["status_message"].(string)
 	return pluginsdk.SetResult{Response: "set: " + msg}, nil
+}
+
+// fakeSetterWithAuth also implements AuthHandler.
+type fakeSetterWithAuth struct{ fakeSetter }
+
+func (fakeSetterWithAuth) Authenticate(_ map[string]any, _ io.Writer) (map[string]string, error) {
+	return map[string]string{"setter_token": "stok"}, nil
 }
 
 // --- ServeGetter tests ---
@@ -129,6 +152,58 @@ func TestServeGetter(t *testing.T) {
 	}
 }
 
+// --- authenticate tests (getter) ---
+
+func TestServeGetterAuthenticate(t *testing.T) {
+	t.Run("authenticate_with_auth_handler", func(t *testing.T) {
+		var out bytes.Buffer
+		in := strings.NewReader(`{"params":{"key":"mykey"}}`)
+		code := pluginsdk.ServeGetter(fakeGetterWithAuth{}, []string{"--authenticate"}, in, &out)
+		assert.Equal(t, 0, code)
+		var resp struct {
+			Tokens map[string]string `json:"tokens"`
+			Error  string            `json:"error,omitempty"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out.String()), &resp))
+		assert.Equal(t, "tok-mykey", resp.Tokens["token"])
+		assert.Empty(t, resp.Error)
+	})
+
+	t.Run("authenticate_without_auth_handler_returns_error", func(t *testing.T) {
+		var out bytes.Buffer
+		in := strings.NewReader(`{"params":{}}`)
+		code := pluginsdk.ServeGetter(fakeGetter{}, []string{"--authenticate"}, in, &out)
+		assert.Equal(t, 1, code)
+		var resp struct {
+			Error string `json:"error"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out.String()), &resp))
+		assert.NotEmpty(t, resp.Error)
+	})
+
+	t.Run("metadata_with_auth_handler_sets_supports_auth", func(t *testing.T) {
+		var out bytes.Buffer
+		code := pluginsdk.ServeGetter(fakeGetterWithAuth{}, []string{"--metadata"}, strings.NewReader(""), &out)
+		assert.Equal(t, 0, code)
+		var resp struct {
+			SupportsAuth bool `json:"supports_auth"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out.String()), &resp))
+		assert.True(t, resp.SupportsAuth)
+	})
+
+	t.Run("metadata_without_auth_handler_omits_supports_auth", func(t *testing.T) {
+		var out bytes.Buffer
+		code := pluginsdk.ServeGetter(fakeGetter{}, []string{"--metadata"}, strings.NewReader(""), &out)
+		assert.Equal(t, 0, code)
+		var resp struct {
+			SupportsAuth bool `json:"supports_auth"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out.String()), &resp))
+		assert.False(t, resp.SupportsAuth)
+	})
+}
+
 // --- ServeSetter tests ---
 
 type serveSetterTest struct {
@@ -199,4 +274,28 @@ func TestServeSetter(t *testing.T) {
 			tc.RunTest(t)
 		})
 	}
+}
+
+// --- authenticate tests (setter) ---
+
+func TestServeSetterAuthenticate(t *testing.T) {
+	t.Run("authenticate_with_auth_handler", func(t *testing.T) {
+		var out bytes.Buffer
+		in := strings.NewReader(`{"params":{}}`)
+		code := pluginsdk.ServeSetter(fakeSetterWithAuth{}, []string{"--authenticate"}, in, &out)
+		assert.Equal(t, 0, code)
+		var resp struct {
+			Tokens map[string]string `json:"tokens"`
+			Error  string            `json:"error,omitempty"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out.String()), &resp))
+		assert.Equal(t, "stok", resp.Tokens["setter_token"])
+	})
+
+	t.Run("authenticate_without_auth_handler_returns_error", func(t *testing.T) {
+		var out bytes.Buffer
+		in := strings.NewReader(`{"params":{}}`)
+		code := pluginsdk.ServeSetter(fakeSetter{}, []string{"--authenticate"}, in, &out)
+		assert.Equal(t, 1, code)
+	})
 }
