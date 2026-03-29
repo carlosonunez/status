@@ -18,3 +18,11 @@ func NewIntegrationCommandForTest(gr *getter.Registry, sr *setter.Registry) *cob
 func NewAuthCommandForTest(gr *getter.Registry, sr *setter.Registry, store pluginspec.TokenStore) *cobra.Command {
 	return newAuthCommandWithStore(gr, sr, store)
 }
+
+// SetPluginDiscoverer replaces the discovery function used by the root command
+// and returns a restore function. Used in tests to avoid real filesystem calls.
+func SetPluginDiscoverer(fn func([]string) error) func() {
+	orig := pluginDiscoverer
+	pluginDiscoverer = fn
+	return func() { pluginDiscoverer = orig }
+}

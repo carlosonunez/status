@@ -134,6 +134,21 @@ func TestAuthLogin(t *testing.T) {
 			WantOutputContains: []string{"No integrations require authentication"},
 		},
 		{
+			TestName: "no_flags_defaults_to_all",
+			BuildGetters: func(called *[]string) []*authGetter {
+				return []*authGetter{
+					{name: "getter_a", called: called},
+				}
+			},
+			BuildSetters: func(called *[]string) []*authSetter {
+				return []*authSetter{
+					{name: "setter_b", called: called},
+				}
+			},
+			Args:       []string{"login"},
+			WantCalled: []string{"getter_a", "setter_b"},
+		},
+		{
 			TestName: "all_flag_calls_all_authenticators",
 			BuildGetters: func(called *[]string) []*authGetter {
 				return []*authGetter{
