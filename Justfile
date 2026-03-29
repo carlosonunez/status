@@ -17,9 +17,13 @@ default:
 
 # ── build ─────────────────────────────────────────────────────────────────────
 
-# Compile the status binary for the host platform (output: ./bin/status[.exe])
-build:
+# Compile the status binary and all plugin binaries for the host platform
+build: build-plugins
     docker compose run --rm -e GOOS={{goos}} -e GOARCH={{goarch}} -e BIN_EXT={{bin_ext}} -e VERSION={{version}} -e COMMIT={{commit}} -e DATE={{date}} build
+
+# Compile all plugin binaries (output: ./bin/status-getter-<name>[.exe], etc.)
+build-plugins:
+    docker compose run --rm -e GOOS={{goos}} -e GOARCH={{goarch}} -e BIN_EXT={{bin_ext}} build-plugins
 
 # Compile the status binary natively without Docker (output: ./bin/status[.exe])
 build-local:
@@ -37,6 +41,10 @@ test-unit:
 # Run integration tests against DynamoDB Local
 test-integration:
     docker compose run --rm test go test -tags integration ./... -v -count=1
+
+# Run TripIt integration tests (requires TRIPIT_* env vars)
+test-integration-tripit:
+    docker compose run --rm test-integration-tripit
 
 # ── lint ──────────────────────────────────────────────────────────────────────
 
