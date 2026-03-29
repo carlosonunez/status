@@ -135,11 +135,13 @@ services:
       - |
         go mod tidy
         for dir in plugins/getter/*/cmd; do
+          [ -d "$$dir" ] || continue
           name=$$(basename $$(dirname $$dir))
           echo "Building status-getter-$$name..."
           go build -o bin/status-getter-$$name$$BIN_EXT ./$$dir
         done
         for dir in plugins/setter/*/cmd; do
+          [ -d "$$dir" ] || continue
           name=$$(basename $$(dirname $$dir))
           echo "Building status-setter-$$name..."
           go build -o bin/status-setter-$$name$$BIN_EXT ./$$dir
