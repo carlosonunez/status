@@ -2,14 +2,15 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
+	internalconfig "github.com/carlosonunez/status/internal/config"
 	"github.com/carlosonunez/status/internal/getter"
 	"github.com/carlosonunez/status/internal/pluginspec"
 	"github.com/carlosonunez/status/internal/setter"
 	"github.com/carlosonunez/status/internal/tokenstore"
-	internalconfig "github.com/carlosonunez/status/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -41,13 +42,26 @@ func newAuthLoginCommand(gr *getter.Registry, sr *setter.Registry, store plugins
 				}
 				cfg, err := internalconfig.Load(path)
 				if err != nil {
-					return fmt.Errorf("load config: %w", err)
+					if !errors.Is(err, internalconfig.ErrNotFound) {
+						return fmt.Errorf("load config: %w", err)
+					}
+					// No config file yet; fall back to the default file-backed store.
+					ts, tsErr := tokenstore.FromConfig(internalconfig.TokenStoreConfig{})
+					if tsErr != nil {
+						return fmt.Errorf("token store: %w", tsErr)
+					}
+					s = ts
+				} else {
+					ts, tsErr := tokenstore.FromConfig(cfg.TokenStore)
+					if tsErr != nil {
+						return fmt.Errorf("token store: %w", tsErr)
+					}
+					s = ts
 				}
-				ts, err := tokenstore.FromConfig(cfg.TokenStore)
-				if err != nil {
-					return fmt.Errorf("token store: %w", err)
-				}
-				s = ts
+			}
+			// Default to authenticating all integrations when no selector is given.
+			if !all && integrations == "" {
+				all = true
 			}
 			return runAuthLogin(cmd, gr, sr, s, all, integrations)
 		},
