@@ -131,3 +131,90 @@ func TestExternalGetter(t *testing.T) {
 		})
 	}
 }
+
+func TestExternalGetterAuthenticate(t *testing.T) {
+	const fakeMetaNoAuth = `{"name":"mycal","type":"getter","min_interval":"1m"}`
+	const fakeMetaWithAuth = `{"name":"mycal","type":"getter","min_interval":"1m","supports_auth":true}`
+	const fakeAuthResp = `{"tokens":{"access_token":"tok123","token_secret":"sec456"}}`
+	const fakeAuthErrResp = `{"error":"invalid credentials"}`
+
+	authInvoker := func(authJSON string) plugin.InvokerFunc {
+		return func(_ context.Context, _, flag string, _ io.Reader) ([]byte, error) {
+			switch flag {
+			case "--metadata":
+				return []byte(fakeMetaWithAuth), nil
+			case "--authenticate":
+				return []byte(authJSON), nil
+			default:
+				return nil, fmt.Errorf("unexpected flag: %s", flag)
+			}
+		}
+	}
+
+	t.Run("authenticate_stores_tokens_when_supported", func(t *testing.T) {
+		g, err := plugin.NewExternalGetterWithInvoker("/fake/status-getter-mycal", authInvoker(fakeAuthResp))
+		require.NoError(t, err)
+		assert.True(t, g.SupportsAuth())
+
+		store := &fakeTokenStore{}
+		err = g.Authenticate(context.Background(), store)
+		require.NoError(t, err)
+		assert.Equal(t, "tok123", store.tokens["mycal/access_token"])
+		assert.Equal(t, "sec456", store.tokens["mycal/token_secret"])
+	})
+
+	t.Run("authenticate_returns_error_when_binary_errors", func(t *testing.T) {
+		g, err := plugin.NewExternalGetterWithInvoker("/fake/status-getter-mycal", authInvoker(fakeAuthErrResp))
+		require.NoError(t, err)
+
+		store := &fakeTokenStore{}
+		err = g.Authenticate(context.Background(), store)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid credentials")
+	})
+
+	t.Run("getter_without_supports_auth_returns_error", func(t *testing.T) {
+		noAuthInvoker := func(_ context.Context, _, flag string, _ io.Reader) ([]byte, error) {
+			if flag == "--metadata" {
+				return []byte(fakeMetaNoAuth), nil
+			}
+			return nil, fmt.Errorf("unexpected flag: %s", flag)
+		}
+		g, err := plugin.NewExternalGetterWithInvoker("/fake/status-getter-mycal", plugin.InvokerFunc(noAuthInvoker))
+		require.NoError(t, err)
+		assert.False(t, g.SupportsAuth())
+
+		store := &fakeTokenStore{}
+		err = g.Authenticate(context.Background(), store)
+		require.Error(t, err)
+	})
+}
+
+// fakeTokenStore is an in-memory pluginspec.TokenStore for tests.
+type fakeTokenStore struct {
+	tokens map[string]string
+}
+
+func (s *fakeTokenStore) Get(service, key string) (string, error) {
+	if s.tokens == nil {
+		return "", fmt.Errorf("not found")
+	}
+	v, ok := s.tokens[service+"/"+key]
+	if !ok {
+		return "", fmt.Errorf("not found")
+	}
+	return v, nil
+}
+
+func (s *fakeTokenStore) Set(service, key, value string) error {
+	if s.tokens == nil {
+		s.tokens = make(map[string]string)
+	}
+	s.tokens[service+"/"+key] = value
+	return nil
+}
+
+func (s *fakeTokenStore) Delete(service, key string) error {
+	delete(s.tokens, service+"/"+key)
+	return nil
+}

@@ -1,66 +1,313 @@
-# Phase 4: Token Store
+# Phase 5: TripIt EventGetter Plugin
 
-## Goal
-Build `internal/tokenstore` — a pluggable credential storage layer used by
-OAuth-based getters and setters (Slack, Google Calendar, etc.) to persist and
-retrieve access/refresh tokens.
+## Branch
+`feat/tripit-getter`
 
-## Interface
+---
+
+## Part A — Extend plugin protocol for auth
+
+### `pkg/pluginsdk`
+
+- Add `SupportsAuth bool` to `GetterMetadata` and `SetterMetadata`.
+- Add `AuthHandler` interface:
+  ```go
+  type AuthHandler interface {
+      Authenticate(params map[string]any, out io.Writer) (map[string]string, error)
+  }
+  ```
+- Add protocol types:
+  ```go
+  type authenticateRequest  struct { Params map[string]any    `json:"params"` }
+  type authenticateResponse struct {
+      Tokens map[string]string `json:"tokens,omitempty"`
+      Error  string            `json:"error,omitempty"`
+  }
+  ```
+- Add `--authenticate` case to `ServeGetter` and `ServeSetter`:
+  decode `authenticateRequest` from stdin; cast handler to `AuthHandler`
+  (return error response if not implemented); encode `authenticateResponse`.
+- `--metadata` sets `supports_auth: true` when handler implements `AuthHandler`.
+
+### `internal/plugin/protocol.go`
+
+- Add mirror `authenticateRequest` / `authenticateResponse` types.
+
+### `internal/plugin/external_getter.go` + `external_setter.go`
+
+- Add `supportsAuth bool` from metadata.
+- When true, implement `pluginspec.Authenticator.Authenticate(ctx, store)`:
+  - Invoke binary `--authenticate` with empty params (consumer credentials
+    are prompted inside the binary).
+  - Pipe binary stderr → terminal so the user sees the auth URL.
+  - Decode `authenticateResponse`; return any error.
+  - Call `store.Set(g.name, key, value)` for each returned token.
+
+### Tests (Part A) — extend existing test files
+
+- `pkg/pluginsdk/pluginsdk_test.go`:
+  - `--authenticate` with `AuthHandler` impl → tokens in response
+  - `--authenticate` without `AuthHandler` → error response
+  - `--metadata` with `AuthHandler` → `supports_auth: true`
+- `internal/plugin/external_getter_test.go`:
+  - `Authenticate` invokes binary, stores returned tokens
+  - `Authenticate` propagates binary error
+  - Getter without `supports_auth` does not implement `Authenticator`
+
+---
+
+## Part B — `status-getter-tripit` binary
+
+### Location & output
+
+```
+plugins/getter/tripit/
+├── main.go              — os.Exit(pluginsdk.ServeGetter(…))
+├── handler.go           — GetterHandler + AuthHandler
+├── client.go            — TripIt HTTP client (OAuth 1.0 signing)
+├── types.go             — TripIt JSON response structs
+├── trips.go             — pure parsing functions (no I/O)
+├── browser.go           — chromedp helpers for auth (GDPR, sign-in, authorise)
+├── handler_test.go      — unit tests: GetEvents, Authenticate (mock HTTP)
+├── trips_test.go        — table-driven unit tests for all parsing functions
+├── client_test.go       — unit tests for HTTP client (httptest mock)
+└── integration_test.go  — integration tests (tag: integration)
+```
+
+Compiled to: `bin/status-getter-tripit[.exe]`
+
+### `types.go`
+
+TripIt v1 JSON shapes. Key detail: `Trip`, `AirObject.Segment`, `NoteObject`
+may be a single object OR an array — use a generic `oneOrMany[T]` unmarshaler.
 
 ```go
-// Store persists and retrieves opaque credential strings keyed by
-// (service, key). Service is e.g. "slack" or "google_calendar";
-// key is e.g. "access_token" or "refresh_token".
-type Store interface {
-    Get(service, key string) (string, error)
-    Set(service, key string, value string) error
-    Delete(service, key string) error
+type listTripResponse struct {
+    Trip       oneOrMany[trip]       `json:"Trip"`
+    AirObject  oneOrMany[airObject]  `json:"AirObject"`
+    NoteObject oneOrMany[note]       `json:"NoteObject"`
+}
+type trip struct {
+    ID              string `json:"id"`
+    DisplayName     string `json:"display_name"`
+    PrimaryLocation string `json:"primary_location"`
+    StartDate       string `json:"start_date"`   // YYYY-MM-DD
+    EndDate         string `json:"end_date"`
+    RelativeURL     string `json:"relative_url"`
+}
+type airObject struct {
+    TripID  string             `json:"trip_id"`
+    Segment oneOrMany[segment] `json:"Segment"`
+}
+type segment struct {
+    MarketingAirlineCode  string   `json:"marketing_airline_code"`
+    MarketingFlightNumber string   `json:"marketing_flight_number"`
+    StartAirportCode      string   `json:"start_airport_code"`
+    EndAirportCode        string   `json:"end_airport_code"`
+    StartDateTime         dateTime `json:"StartDateTime"`
+    EndDateTime           dateTime `json:"EndDateTime"`
+}
+type dateTime struct {
+    Date      string `json:"date"`
+    Time      string `json:"time"`
+    UTCOffset string `json:"utc_offset"` // e.g. "-06:00"
+}
+type note struct {
+    TripID      string `json:"trip_id"`
+    DisplayName string `json:"display_name"`
 }
 ```
 
-## Backends
+### `trips.go` (pure functions, testable without I/O)
 
-### File backend (default)
-- Stores tokens in a JSON file at `~/.config/status/tokens.json`
-  (or the path from `FileStoreConfig.Path`)
-- Format: `{"slack": {"access_token": "xoxp-...", ...}, ...}`
-- Reads the file on every `Get`; writes the whole file on every `Set`/`Delete`
-- Safe for single-process use; protected by an in-process mutex
-- Unit tests: inject a `readWriter` interface (in-memory bytes.Buffer) — no
-  real files
-
-### DynamoDB backend
-- Table schema: partition key `service` (S), sort key `key` (S), attribute
-  `value` (S)
-- Uses `aws-sdk-go-v2` (add to go.mod)
-- Endpoint from `AWS_ENDPOINT_DYNAMODB` env var (falls back to
-  `DynamoStoreConfig.Endpoint`, then AWS default)
-- Credentials from the default AWS credential chain
-- Unit tests: connect to DynamoDB Local via `AWS_ENDPOINT_DYNAMODB`
-  (default `http://localhost:8000`); skip with `t.Skip` if unreachable
-- Each test creates a uniquely-named table, deletes it in `t.Cleanup`
-
-## Factory
-
+Internal resolved type:
 ```go
-func FromConfig(cfg config.TokenStoreConfig) (Store, error)
+type flight struct {
+    FlightNumber string
+    Origin       string
+    Destination  string
+    DepartTime   time.Time
+    ArriveTime   time.Time
+    Offset       string
+}
 ```
 
-## Files
+Functions:
+```
+normaliseFlightTimeToTZ(dt dateTime) (time.Time, error)
+resolveFlights(airObjects []airObject, tripID string) ([]flight, error)
+resolveStartTime(t trip, flights []flight, ingressSec int) time.Time
+resolveEndTime(t trip, flights []flight) time.Time
+resolveLocation(t trip) string          // "Anywhere, Earth" if missing
+tripEnded(endsAt time.Time, notes []note, tripID string, now time.Time) bool
+ingressSeconds() int    // reads TRIPIT_INGRESS_TIME_MINUTES env var, default 0
+```
 
-### New
-- `internal/tokenstore/store.go`      — Store interface + FromConfig factory
-- `internal/tokenstore/file.go`       — file-based backend
-- `internal/tokenstore/file_test.go`  — unit tests (injectable in-memory I/O)
-- `internal/tokenstore/dynamo.go`     — DynamoDB backend
-- `internal/tokenstore/dynamo_test.go`— unit tests using DynamoDB Local
+### `client.go`
 
-### Updated
-- `compose.yml` — add DynamoDB Local dependency + `AWS_ENDPOINT_DYNAMODB`
-  and AWS credential env vars to `test-unit` service
+```go
+type Client struct { httpClient *http.Client }
+func NewClient(consumerKey, consumerSecret, accessToken, tokenSecret string) *Client
+func (c *Client) ListTrips(ctx context.Context) (*listTripResponse, error)
+func (c *Client) GetRequestToken(ctx context.Context, consumerKey, consumerSecret, callbackURL string) (token, secret string, _ error)
+func (c *Client) GetAccessToken(ctx context.Context, consumerKey, consumerSecret, reqToken, reqSecret, verifier string) (token, secret string, _ error)
+```
 
-## Implementation order (TDD)
-1. file_test.go → file.go
-2. dynamo_test.go → dynamo.go
-3. store.go (interface + FromConfig)
-4. Update compose.yml
+OAuth 1.0 HMAC-SHA1 signing via `github.com/dghubble/oauth1`.
+
+### `browser.go` (used only during `--authenticate`)
+
+Thin `chromedp` wrapper mirroring the Python `TripitWebDriver`:
+
+```go
+type Browser struct { ctx context.Context; cancel context.CancelFunc }
+func NewBrowser(ctx context.Context) (*Browser, error)  // headless Chrome via chromedp
+func (b *Browser) SetGDPRCookies() error
+func (b *Browser) Visit(url string) error
+func (b *Browser) FillIn(selector, value string) error
+func (b *Browser) ClickButton(text string) error
+func (b *Browser) PageSource() (string, error)
+func (b *Browser) Close()
+```
+
+`KEEP_BROWSER_OPEN=true` suppresses `Close()` (matches Python's
+`KEEP_BROWSER_WINDOWS_OPEN`).
+
+### `handler.go`
+
+**`Metadata()`** → name `"tripit"`, `MinInterval: "5m"`, `SupportsAuth: true`,
+and `ParamSpecs` for `consumer_key`, `consumer_secret`, `access_token`,
+`token_secret`, `ingress_minutes`.
+
+**`GetEvents(params)`**:
+1. Extract params; resolve ingress via `ingressSeconds()` (param overrides env var).
+2. Build `Client`; call `ListTrips`.
+3. For each trip: `resolveFlights`, `resolveStartTime`, `resolveEndTime`,
+   `resolveLocation`, `tripEnded`.
+4. Filter to `startsAt <= now <= endsAt`.
+5. Return `[]pluginsdk.Event`.
+
+**`Authenticate(params, out)`**:
+1. Pick random local port; register callback handler on `localhost:PORT`.
+2. Call `client.GetRequestToken(…, "http://localhost:PORT/callback")`.
+3. Print to `out`:
+   ```
+   Open this URL to authorise status with TripIt:
+
+     https://www.tripit.com/oauth/authorize?oauth_token=TOKEN&oauth_callback=http://localhost:PORT/callback
+
+   Waiting for authorisation...
+   ```
+4. Block until callback arrives (with context timeout).
+5. Call `client.GetAccessToken` with verifier.
+6. Return `{"access_token": "…", "token_secret": "…"}`.
+
+### `main.go`
+
+```go
+func main() {
+    os.Exit(pluginsdk.ServeGetter(handler.New(), os.Args[1:], os.Stdin, os.Stdout))
+}
+```
+
+---
+
+## Part C — Integration tests (`//go:build integration`)
+
+### File: `plugins/getter/tripit/integration_test.go`
+
+Uses `github.com/chromedp/chromedp` directly (not `browser.go` — these are
+black-box tests against the real binary + real TripIt sandbox account).
+
+**Required env vars** (skip test with `t.Skip` if absent):
+- `TRIPIT_APP_CLIENT_ID`, `TRIPIT_APP_CLIENT_SECRET`
+- `TRIPIT_SANDBOX_ACCOUNT_EMAIL`, `TRIPIT_SANDBOX_ACCOUNT_PASSWORD`
+
+**Helper**: `tripitBrowser` — wraps chromedp to sign in to tripit.com, create/delete trips, and complete OAuth authorization flows. Mirrors `TripitWebDriver` from the Python suite.
+
+**Test scenarios** (table-driven where practical):
+
+| Test | Description |
+|------|-------------|
+| `test_getting_an_authorization_url` | `--authenticate` prints a URL matching `https://www.tripit.com/oauth/authorize?oauth_token=[a-zA-Z0-9]+&oauth_callback=http://localhost:[0-9]+/callback` |
+| `test_getting_a_token_after_callback` | Full OAuth dance via browser automation returns `access_token` and `token_secret` |
+| `test_fetching_active_trips` | After auth, `--get-events` with stored tokens returns the sandbox account's active trips |
+| `test_set_and_get_current_trip` | Create trip via browser → `--get-events` returns it → delete trip via browser (cleanup in `t.Cleanup`) |
+
+### `compose.yml` additions for integration tests
+
+- `chrome` service: `chromedp/headless-shell:latest` — provides Chrome for
+  `chromedp` to connect to remotely (set `CHROME_REMOTE_URL` env var).
+- `test-integration-tripit` service: runs `go test -tags integration` for the
+  plugin, linked to `chrome` and given sandbox credentials from environment.
+
+---
+
+## Build infrastructure
+
+### `Justfile`
+
+```just
+# Compile all plugin binaries for the host platform
+build-plugins:
+    docker compose run --rm \
+      -e GOOS={{goos}} -e GOARCH={{goarch}} -e BIN_EXT={{bin_ext}} \
+      -e VERSION={{version}} -e COMMIT={{commit}} -e DATE={{date}} \
+      build-plugins
+
+# build now also compiles plugins
+build: build-plugins
+    docker compose run --rm \
+      -e GOOS={{goos}} -e GOARCH={{goarch}} -e BIN_EXT={{bin_ext}} \
+      -e VERSION={{version}} -e COMMIT={{commit}} -e DATE={{date}} \
+      build
+```
+
+### `compose.yml`
+
+- `build-plugins` service: iterates `plugins/getter/*` and `plugins/setter/*`,
+  compiles each to `bin/status-getter-<name>` / `bin/status-setter-<name>`.
+- `chrome` service: `chromedp/headless-shell:latest`, used by integration tests.
+- `test-integration-tripit` service: runs plugin integration tests with Chrome
+  and sandbox credentials.
+
+---
+
+## Dependencies to add to `go.mod`
+
+- `github.com/dghubble/oauth1`
+- `github.com/chromedp/chromedp`
+
+---
+
+## TDD Order
+
+1. `types.go` — data only, no tests
+2. `trips_test.go` → `trips.go` — all pure parsing functions
+3. `client_test.go` → `client.go` — HTTP client (httptest mock server)
+4. `handler_test.go` → `handler.go` — GetEvents + Authenticate (httptest mock)
+5. `browser.go` — chromedp wrapper (used by integration tests only)
+6. `main.go` — trivial entry point
+7. Part A: extend `pkg/pluginsdk` tests → implementation
+8. Part A: extend `internal/plugin/external_getter_test.go` → implementation
+9. `integration_test.go` — browser-based end-to-end tests
+10. `Justfile` + `compose.yml` updates
+
+---
+
+## Unit Test Scenarios (`trips_test.go`, table-driven)
+
+| Scenario | Expected |
+|----------|----------|
+| No trips in response | `[]Event{}` |
+| Trip with two flight segments (AA356 + AA2360) | StartsAt = depart+ingress; EndsAt = last arrive; flights len=2 |
+| Trip without flights | StartsAt/EndsAt from start/end_date; flights=[] |
+| now before starts_on | not returned |
+| now after ends_on | not returned |
+| TRIP_ENDED note present | ended=true in Meta |
+| Single-segment flight (single object, not array) | normalised; flights len=1 |
+| TripIt returns Trip as single object not array | normalised, no panic |
+| API returns non-200 | error returned |
+| Missing primary_location | city = "Anywhere, Earth" |
+| `TRIPIT_INGRESS_TIME_MINUTES=90` env var | StartsAt = depart + 5400s |
+| `ingress_minutes` param set | overrides env var |

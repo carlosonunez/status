@@ -9,10 +9,20 @@ import "github.com/carlosonunez/status/internal/pluginspec"
 // without importing the public SDK package.
 
 type metadataResponse struct {
-	Name        string               `json:"name"`
-	Type        string               `json:"type"` // "getter" or "setter"
-	MinInterval string               `json:"min_interval,omitempty"`
-	ParamSpecs  []pluginspec.ParamSpec `json:"param_specs,omitempty"`
+	Name         string                `json:"name"`
+	Type         string                `json:"type"` // "getter" or "setter"
+	MinInterval  string                `json:"min_interval,omitempty"`
+	ParamSpecs   []pluginspec.ParamSpec `json:"param_specs,omitempty"`
+	SupportsAuth bool                  `json:"supports_auth,omitempty"`
+}
+
+type authenticateRequest struct {
+	Params map[string]any `json:"params"`
+}
+
+type authenticateResponse struct {
+	Tokens map[string]string `json:"tokens,omitempty"`
+	Error  string            `json:"error,omitempty"`
 }
 
 type getEventsRequest struct {

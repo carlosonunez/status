@@ -14,12 +14,15 @@ import (
 )
 
 // ExternalGetter implements getter.EventGetter by invoking an external binary.
+// When the binary reports supports_auth:true in its metadata it also
+// implements pluginspec.Authenticator.
 type ExternalGetter struct {
-	binaryPath  string
-	name        string
-	minInterval time.Duration
-	paramSpecs  []pluginspec.ParamSpec
-	invoke      invoker
+	binaryPath   string
+	name         string
+	minInterval  time.Duration
+	paramSpecs   []pluginspec.ParamSpec
+	supportsAuth bool
+	invoke       invoker
 }
 
 // NewExternalGetter reads metadata from the binary at path and returns an
@@ -47,11 +50,12 @@ func newExternalGetterFromMeta(path string, meta metadataResponse, inv invoker) 
 		}
 	}
 	return &ExternalGetter{
-		binaryPath:  path,
-		name:        meta.Name,
-		minInterval: interval,
-		paramSpecs:  meta.ParamSpecs,
-		invoke:      inv,
+		binaryPath:   path,
+		name:         meta.Name,
+		minInterval:  interval,
+		paramSpecs:   meta.ParamSpecs,
+		supportsAuth: meta.SupportsAuth,
+		invoke:       inv,
 	}, nil
 }
 
@@ -118,6 +122,43 @@ func convertEvent(e externalEvent) (getter.Event, error) {
 		Meta:     e.Meta,
 	}, nil
 }
+
+// Authenticate implements pluginspec.Authenticator by invoking the binary with
+// --authenticate. The binary runs the full auth flow (printing prompts to
+// stderr so the user sees them) and returns acquired tokens as JSON.
+// The caller is responsible for storing the returned tokens in the TokenStore.
+func (g *ExternalGetter) Authenticate(ctx context.Context, store pluginspec.TokenStore) error {
+	if !g.supportsAuth {
+		return fmt.Errorf("plugin: getter %q does not support authentication", g.name)
+	}
+	var reqBuf bytes.Buffer
+	if err := json.NewEncoder(&reqBuf).Encode(authenticateRequest{Params: map[string]any{}}); err != nil {
+		return fmt.Errorf("plugin: getter %q encode auth request: %w", g.name, err)
+	}
+
+	out, err := g.invoke(ctx, g.binaryPath, "--authenticate", &reqBuf)
+	if err != nil {
+		return fmt.Errorf("plugin: getter %q authenticate invocation: %w", g.name, err)
+	}
+
+	var resp authenticateResponse
+	if err := json.Unmarshal(out, &resp); err != nil {
+		return fmt.Errorf("plugin: getter %q bad authenticate response: %w", g.name, err)
+	}
+	if resp.Error != "" {
+		return fmt.Errorf("plugin: getter %q authenticate: %s", g.name, resp.Error)
+	}
+
+	for k, v := range resp.Tokens {
+		if err := store.Set(g.name, k, v); err != nil {
+			return fmt.Errorf("plugin: getter %q store token %q: %w", g.name, k, err)
+		}
+	}
+	return nil
+}
+
+// SupportsAuth reports whether this getter's binary implements the auth flow.
+func (g *ExternalGetter) SupportsAuth() bool { return g.supportsAuth }
 
 // Ensure ExternalGetter satisfies the interface at compile time.
 var _ getter.EventGetter = (*ExternalGetter)(nil)

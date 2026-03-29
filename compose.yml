@@ -114,6 +114,67 @@ services:
     depends_on:
       - dynamodb-local
 
+  # Compiles all plugin binaries. Each plugins/getter/<name>/cmd/main.go becomes
+  # bin/status-getter-<name>[.exe]; plugins/setter/<name>/cmd/main.go becomes
+  # bin/status-setter-<name>[.exe].
+  build-plugins:
+    image: golang:1.24-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go-cache:/root/.cache/go-build
+      - gomod-cache:/go/pkg/mod
+    environment:
+      CGO_ENABLED: "0"
+      GOOS: ${GOOS:-linux}
+      GOARCH: ${GOARCH:-amd64}
+      BIN_EXT: ${BIN_EXT:-}
+    command:
+      - sh
+      - -euc
+      - |
+        go mod tidy
+        for dir in plugins/getter/*/cmd; do
+          [ -d "$$dir" ] || continue
+          name=$$(basename $$(dirname $$dir))
+          echo "Building status-getter-$$name..."
+          go build -o bin/status-getter-$$name$$BIN_EXT ./$$dir
+        done
+        for dir in plugins/setter/*/cmd; do
+          [ -d "$$dir" ] || continue
+          name=$$(basename $$(dirname $$dir))
+          echo "Building status-setter-$$name..."
+          go build -o bin/status-setter-$$name$$BIN_EXT ./$$dir
+        done
+
+  # Headless Chrome for TripIt integration tests (chromedp remote allocator).
+  chrome:
+    image: chromedp/headless-shell:latest
+    ports:
+      - "9222:9222"
+    command: ["--remote-debugging-address=0.0.0.0", "--remote-debugging-port=9222", "--no-sandbox"]
+
+  # Runs TripIt integration tests against a real TripIt sandbox account.
+  test-integration-tripit:
+    image: golang:1.24-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go-cache:/root/.cache/go-build
+      - gomod-cache:/go/pkg/mod
+    command: go test -tags integration ./plugins/getter/tripit/... -v -count=1 -timeout 120s
+    environment:
+      CGO_ENABLED: "0"
+      CHROME_REMOTE_URL: ws://chrome:9222
+      TRIPIT_APP_CLIENT_ID: ${TRIPIT_APP_CLIENT_ID:-}
+      TRIPIT_APP_CLIENT_SECRET: ${TRIPIT_APP_CLIENT_SECRET:-}
+      TRIPIT_SANDBOX_ACCOUNT_EMAIL: ${TRIPIT_SANDBOX_ACCOUNT_EMAIL:-}
+      TRIPIT_SANDBOX_ACCOUNT_PASSWORD: ${TRIPIT_SANDBOX_ACCOUNT_PASSWORD:-}
+      TRIPIT_ACCESS_TOKEN: ${TRIPIT_ACCESS_TOKEN:-}
+      TRIPIT_TOKEN_SECRET: ${TRIPIT_TOKEN_SECRET:-}
+    depends_on:
+      - chrome
+
   # Builds a release binary and pushes to ECR.
   deploy:
     image: golang:1.24-alpine
