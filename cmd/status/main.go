@@ -3,12 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/adrg/xdg"
 	"github.com/carlosonunez/status/internal/cli"
-	"github.com/carlosonunez/status/internal/plugin"
-	"github.com/sirupsen/logrus"
 
 	// Register built-in event getters.
 	_ "github.com/carlosonunez/status/internal/getter/dummy"
@@ -27,12 +23,6 @@ var (
 )
 
 func main() {
-	binDir := filepath.Join(xdg.ConfigHome, "status", "bin")
-	if err := plugin.DiscoverAllDefault(binDir); err != nil {
-		// Non-fatal: log and continue so built-in plugins still work.
-		logrus.WithError(err).Warn("plugin discovery failed")
-	}
-
 	root := cli.NewRootCommand(version, commit, date)
 	cmd, err := root.ExecuteC()
 	if err != nil {

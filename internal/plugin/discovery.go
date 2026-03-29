@@ -30,6 +30,18 @@ func DiscoverAllDefault(binDir string) error {
 	return DiscoverAll(binDir, getter.DefaultRegistry(), setter.DefaultRegistry())
 }
 
+// DiscoverDirs scans each directory in dirs for plugin binaries and registers
+// them in the provided registries. Directories that do not exist are silently
+// skipped.
+func DiscoverDirs(dirs []string, gr *getter.Registry, sr *setter.Registry) error {
+	for _, dir := range dirs {
+		if err := DiscoverAll(dir, gr, sr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // discoverFS is the testable core: it reads from fsys, constructs plugin
 // instances via the injected factories, and registers them.
 func discoverFS(
