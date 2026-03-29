@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -65,15 +66,6 @@ func (c *Client) ListTrips(ctx context.Context) (*listTripResponse, error) {
 
 // GetRequestToken obtains a temporary OAuth request token from TripIt.
 func (c *Client) GetRequestToken(ctx context.Context, consumerKey, consumerSecret, callbackURL string) (token, secret string, _ error) {
-	cfg := oauth1.NewConfig(consumerKey, consumerSecret)
-	rt, err := cfg.RequestToken()
-	if err != nil {
-		// Fall back to a manual request against baseURL (allows test override).
-		return c.requestTokenManual(ctx, consumerKey, consumerSecret, callbackURL)
-	}
-	_ = rt
-	// In production the dghubble library hits api.tripit.com directly.
-	// For testability we also support the manual path below.
 	return c.requestTokenManual(ctx, consumerKey, consumerSecret, callbackURL)
 }
 
@@ -99,11 +91,11 @@ func (c *Client) requestTokenManual(ctx context.Context, consumerKey, consumerSe
 		return "", "", fmt.Errorf("tripit: request_token returned %d", resp.StatusCode)
 	}
 
-	var buf strings.Builder
-	if _, err := buf.ReadFrom(resp.Body); err != nil {
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return "", "", fmt.Errorf("tripit: read request_token response: %w", err)
 	}
-	vals, err := url.ParseQuery(buf.String())
+	vals, err := url.ParseQuery(string(raw))
 	if err != nil {
 		return "", "", fmt.Errorf("tripit: parse request_token response: %w", err)
 	}
@@ -143,11 +135,11 @@ func (c *Client) GetAccessToken(ctx context.Context, consumerKey, consumerSecret
 		return "", "", fmt.Errorf("tripit: access_token returned %d", resp.StatusCode)
 	}
 
-	var buf strings.Builder
-	if _, err := buf.ReadFrom(resp.Body); err != nil {
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return "", "", fmt.Errorf("tripit: read access_token response: %w", err)
 	}
-	vals, err := url.ParseQuery(buf.String())
+	vals, err := url.ParseQuery(string(raw))
 	if err != nil {
 		return "", "", fmt.Errorf("tripit: parse access_token response: %w", err)
 	}
